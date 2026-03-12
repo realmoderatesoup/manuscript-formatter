@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Format Your Manuscript — Manuscript Formatter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#f8fafc;
+  --surface:#ffffff;
+  --border:#e2e8f0;
+  --accent:#4f46e5;
+  --accent-hover:#4338ca;
+  --accent-light:#eef2ff;
+  --text:#1e293b;
+  --text-muted:#64748b;
+  --success:#10b981;
+  --error:#ef4444;
+}
+html{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+body{min-height:100vh;padding:24px}
+
+.container{max-width:640px;margin:0 auto}
+.header{text-align:center;margin-bottom:32px}
+.logo{font-size:24px;font-weight:800;color:var(--text);text-decoration:none}
+.logo span{color:var(--accent)}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;margin-bottom:24px}
+.card h2{font-size:20px;font-weight:700;margin-bottom:8px}
+.card p{color:var(--text-muted);font-size:14px;margin-bottom:24px}
+
+/* License Section */
+.license-section{margin-bottom:24px}
+.license-input{display:flex;gap:12px}
+.license-input input{
+  flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px;
+  font-family:monospace;text-transform:uppercase;letter-spacing:1px
+}
+.license-input button{
+  padding:12px 20px;background:var(--accent);color:white;border:none;border-radius:8px;
+  font-weight:600;cursor:pointer;transition:background 0.2s;white-space:nowrap
+}
+.license-input button:hover{background:var(--accent-hover)}
+.license-input button:disabled{background:var(--border);cursor:not-allowed}
+
+.license-status{margin-top:12px;padding:12px 16px;border-radius:8px;font-size:14px;display:none}
+.license-status.valid{display:block;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
+.license-status.invalid{display:block;background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
+.license-status.checking{display:block;background:var(--accent-light);color:var(--accent)}
+
+.license-links{display:flex;justify-content:space-between;margin-top:16px;font-size:14px}
+.license-links a{color:var(--accent);text-decoration:none}
+.license-links a:hover{text-decoration:underline}
+
+/* Email Lookup Section */
+.email-lookup{display:none;margin-top:20px;padding-top:20px;border-top:1px solid var(--border)}
+.email-lookup.active{display:block}
+.email-lookup h3{font-size:16px;font-weight:600;margin-bottom:12px}
+.email-lookup-input{display:flex;gap:12px}
+.email-lookup-input input{
+  flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px
+}
+.email-lookup-input button{
+  padding:12px 20px;background:var(--accent);color:white;border:none;border-radius:8px;
+  font-weight:600;cursor:pointer;white-space:nowrap
+}
+
+.license-results{margin-top:16px}
+.license-card{
+  background:var(--accent-light);padding:16px;border-radius:10px;margin-bottom:12px
+}
+.license-card .key{
+  font-family:monospace;font-size:16px;font-weight:700;color:var(--accent);
+  margin-bottom:8px;cursor:pointer
+}
+.license-card .key:hover{text-decoration:underline}
+.license-card .meta{font-size:13px;color:var(--text-muted)}
+.license-card .uses{
+  display:inline-block;margin-top:8px;padding:4px 10px;background:white;
+  border-radius:20px;font-size:12px;font-weight:600
+}
+.license-card .uses.exhausted{background:#fef2f2;color:#991b1b}
+
+/* Upload Section */
+.upload-section{display:none}
+.upload-section.active{display:block}
+
+.upload-zone{
+  border:2px dashed var(--border);border-radius:12px;padding:48px 24px;text-align:center;
+  cursor:pointer;transition:all 0.2s;margin-bottom:24px
+}
+.upload-zone:hover{border-color:var(--accent);background:var(--accent-light)}
+.upload-zone.has-file{border-color:var(--success);background:#f0fdf4}
+.upload-zone.dragover{border-color:var(--accent);background:var(--accent-light)}
+.upload-zone .icon{font-size:48px;margin-bottom:12px}
+.upload-zone .text{font-size:16px;font-weight:600;margin-bottom:4px}
+.upload-zone .sub{font-size:13px;color:var(--text-muted)}
+.upload-zone input{display:none}
+
+.file-info{
+  background:var(--accent-light);padding:16px;border-radius:10px;margin-bottom:24px;
+  display:none;align-items:center;gap:12px
+}
+.file-info.show{display:flex}
+.file-info .name{flex:1;font-weight:600;font-size:14px}
+.file-info .remove{background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-muted)}
+
+/* Options */
+.options{margin-bottom:24px}
+.options label{display:block;font-size:14px;font-weight:600;margin-bottom:8px}
+.option-group{display:flex;gap:12px;flex-wrap:wrap}
+.option{
+  flex:1;min-width:120px;padding:16px;border:2px solid var(--border);border-radius:10px;
+  cursor:pointer;transition:all 0.15s;text-align:center
+}
+.option:hover{border-color:var(--accent)}
+.option.selected{border-color:var(--accent);background:var(--accent-light)}
+.option input{display:none}
+.option .title{font-weight:600;font-size:14px;margin-bottom:2px}
+.option .desc{font-size:12px;color:var(--text-muted)}
+
+.trim-select{margin-bottom:24px}
+.trim-select label{display:block;font-size:14px;font-weight:600;margin-bottom:8px}
+.trim-select select{
+  width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:8px;
+  font-size:14px;background:white;cursor:pointer
+}
+
+/* Convert Button */
+.convert-btn{
+  width:100%;padding:16px;background:var(--accent);color:white;border:none;border-radius:10px;
+  font-size:16px;font-weight:700;cursor:pointer;transition:all 0.2s
+}
+.convert-btn:hover{background:var(--accent-hover)}
+.convert-btn:disabled{background:var(--border);cursor:not-allowed}
+
+/* Progress */
+.progress-section{display:none;text-align:center;padding:32px}
+.progress-section.active{display:block}
+.spinner{
+  width:48px;height:48px;border:4px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.progress-text{font-size:14px;color:var(--text-muted)}
+
+/* Success */
+.success-section{display:none;text-align:center;padding:32px}
+.success-section.active{display:block}
+.success-section .icon{font-size:64px;margin-bottom:16px}
+.success-section h3{font-size:24px;font-weight:700;margin-bottom:8px}
+.success-section p{color:var(--text-muted);font-size:14px;margin-bottom:24px}
+.download-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.download-btn{
+  padding:12px 24px;background:var(--accent);color:white;border:none;border-radius:8px;
+  font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px
+}
+.download-btn:hover{background:var(--accent-hover)}
+.download-btn.secondary{background:white;color:var(--accent);border:2px solid var(--accent)}
+
+.uses-remaining{
+  margin-top:16px;padding:12px;background:var(--accent-light);border-radius:8px;
+  font-size:13px;color:var(--accent)
+}
+
+.back-link{display:block;text-align:center;margin-top:16px;color:var(--accent);text-decoration:none;font-size:14px}
+.error-msg{background:#fef2f2;color:#991b1b;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:14px;display:none}
+.error-msg.show{display:block}
+
+.copy-toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:#1e293b;color:white;padding:12px 24px;border-radius:8px;
+  font-size:14px;display:none;z-index:1000
+}
+.copy-toast.show{display:block;animation:fadeInUp 0.3s ease}
+@keyframes fadeInUp{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <a href="/" class="logo">Manuscript<span>Formatter</span></a>
+  </div>
+
+  <div class="card">
+    <h2>Format Your Manuscript</h2>
+    <p>Enter your license key to start. Upload your DOCX or Markdown file and get KDP-ready EPUB and print PDF.</p>
+
+    <div class="error-msg" id="error-msg"></div>
+
+    <!-- License Section -->
+    <div class="license-section" id="license-section">
+      <div class="license-input">
+        <input type="text" id="license-key" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="50">
+        <button id="validate-btn" onclick="validateLicense()">Activate</button>
+      </div>
+      <div class="license-status" id="license-status"></div>
+      
+      <div class="license-links">
+        <a href="#" onclick="toggleEmailLookup(); return false;">Forgot your key?</a>
+        <a href="https://moderatesoup.gumroad.com/l/kdp-formatter" target="_blank">Get a license →</a>
+      </div>
+
+      <!-- Email Lookup -->
+      <div class="email-lookup" id="email-lookup">
+        <h3>🔍 Find Your License</h3>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Enter the email you used to purchase:</p>
+        <div class="email-lookup-input">
+          <input type="email" id="lookup-email" placeholder="you@example.com">
+          <button onclick="lookupByEmail()">Find</button>
+        </div>
+        <div class="license-results" id="license-results"></div>
+      </div>
+    </div>
+
+    <!-- Upload Section (shown after valid license) -->
+    <div class="upload-section" id="upload-section">
+      <div class="upload-zone" id="upload-zone">
+        <div class="icon">📄</div>
+        <div class="text">Drop your file here</div>
+        <div class="sub">DOCX or Markdown (.md)</div>
+        <input type="file" id="file-input" accept=".docx,.doc,.md,.markdown,.txt">
+      </div>
+
+      <div class="file-info" id="file-info">
+        <span>📄</span>
+        <span class="name" id="file-name"></span>
+        <button class="remove" onclick="removeFile()">×</button>
+      </div>
+
+      <div class="options">
+        <label>Output Format</label>
+        <div class="option-group">
+          <div class="option selected" data-format="both" onclick="selectFormat(this, 'both')">
+            <div class="title">📱📖 Both</div>
+            <div class="desc">EPUB + PDF</div>
+          </div>
+          <div class="option" data-format="epub" onclick="selectFormat(this, 'epub')">
+            <div class="title">📱 eBook</div>
+            <div class="desc">EPUB only</div>
+          </div>
+          <div class="option" data-format="pdf" onclick="selectFormat(this, 'pdf')">
+            <div class="title">📖 Print</div>
+            <div class="desc">PDF only</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="trim-select" id="trim-select">
+        <label>Paperback Trim Size</label>
+        <select id="trim-size">
+          <option value="5x8">5" × 8" (Most Popular)</option>
+          <option value="5.25x8">5.25" × 8"</option>
+          <option value="5.5x8.5">5.5" × 8.5"</option>
+          <option value="6x9">6" × 9"</option>
+          <option value="8.5x11">8.5" × 11"</option>
+        </select>
+      </div>
+
+      <button class="convert-btn" id="convert-btn" onclick="convertFile()" disabled>
+        Convert Manuscript →
+      </button>
+    </div>
+
+    <!-- Progress Section -->
+    <div class="progress-section" id="progress-section">
+      <div class="spinner"></div>
+      <div class="progress-text" id="progress-text">Processing your manuscript...</div>
+    </div>
+
+    <!-- Success Section -->
+    <div class="success-section" id="success-section">
+      <div class="icon">✅</div>
+      <h3>Conversion Complete!</h3>
+      <p>Your files are ready to download.</p>
+      <div class="download-btns" id="download-btns"></div>
+      <div class="uses-remaining" id="uses-remaining"></div>
+      <button class="convert-btn" style="margin-top:24px" onclick="resetForm()">Convert Another →</button>
+    </div>
+  </div>
+
+  <a href="/" class="back-link">← Back to Manuscript Formatter</a>
+</div>
+
+<div class="copy-toast" id="copy-toast">✓ License key copied!</div>
+
+<script>
+const API_URL = 'https://manuscript-validator.realmoderatesoup.workers.dev';
+
+let validLicense = null;
+let selectedFile = null;
+let selectedFormat = 'both';
+let usesRemaining = 0;
+
+// DOM elements
+const licenseInput = document.getElementById('license-key');
+const licenseStatus = document.getElementById('license-status');
+const uploadSection = document.getElementById('upload-section');
+const uploadZone = document.getElementById('upload-zone');
+const fileInput = document.getElementById('file-input');
+const fileInfo = document.getElementById('file-info');
+const fileName = document.getElementById('file-name');
+const convertBtn = document.getElementById('convert-btn');
+const trimSelect = document.getElementById('trim-select');
+const progressSection = document.getElementById('progress-section');
+const progressText = document.getElementById('progress-text');
+const successSection = document.getElementById('success-section');
+const errorMsg = document.getElementById('error-msg');
+
+// Check for saved license on load
+window.addEventListener('load', () => {
+  const savedLicense = localStorage.getItem('mf_license');
+  if (savedLicense) {
+    licenseInput.value = savedLicense;
+    validateLicense(true);
+  }
+});
+
+// Toggle email lookup
+function toggleEmailLookup() {
+  const el = document.getElementById('email-lookup');
+  el.classList.toggle('active');
+  if (el.classList.contains('active')) {
+    document.getElementById('lookup-email').focus();
+  }
+}
+
+// Email lookup
+async function lookupByEmail() {
+  const email = document.getElementById('lookup-email').value.trim();
+  if (!email || !email.includes('@')) {
+    showError('Please enter a valid email address');
+    return;
+  }
+
+  const resultsDiv = document.getElementById('license-results');
+  resultsDiv.innerHTML = '<p style="color:var(--text-muted)">Searching...</p>';
+
+  try {
+    const res = await fetch(`${API_URL}/lookup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+
+    const data = await res.json();
+
+    if (!data.found) {
+      resultsDiv.innerHTML = `
+        <p style="color:var(--text-muted);margin-top:12px">
+          No purchases found for this email. Check your Gumroad receipt or try another email.
+        </p>`;
+      return;
+    }
+
+    resultsDiv.innerHTML = data.licenses.map(l => `
+      <div class="license-card">
+        <div class="key" onclick="useLicenseKey('${l.full_key}')" title="Click to use this key">
+          ${l.full_key}
+        </div>
+        <div class="meta">Purchased ${new Date(l.purchased).toLocaleDateString()}</div>
+        <span class="uses ${l.uses_remaining === 0 ? 'exhausted' : ''}">
+          ${l.uses_remaining}/${l.uses_total} uses remaining
+        </span>
+      </div>
+    `).join('');
+
+  } catch (err) {
+    console.error(err);
+    resultsDiv.innerHTML = '<p style="color:var(--error)">Error looking up licenses. Please try again.</p>';
+  }
+}
+
+function useLicenseKey(key) {
+  licenseInput.value = key;
+  document.getElementById('email-lookup').classList.remove('active');
+  validateLicense();
+  
+  // Copy to clipboard
+  navigator.clipboard.writeText(key).then(() => {
+    const toast = document.getElementById('copy-toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
+  });
+}
+
+// License validation
+async function validateLicense(silent = false) {
+  const key = licenseInput.value.trim();
+  if (!key) {
+    if (!silent) showError('Please enter a license key');
+    return;
+  }
+
+  licenseStatus.className = 'license-status checking';
+  licenseStatus.textContent = 'Validating...';
+  document.getElementById('validate-btn').disabled = true;
+
+  try {
+    const res = await fetch(`${API_URL}/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ license_key: key })
+    });
+
+    const data = await res.json();
+
+    if (data.valid) {
+      validLicense = key;
+      usesRemaining = data.uses_remaining;
+      localStorage.setItem('mf_license', key);
+
+      if (usesRemaining > 0) {
+        licenseStatus.className = 'license-status valid';
+        licenseStatus.innerHTML = `✓ License activated! <strong>${usesRemaining}</strong> conversion${usesRemaining !== 1 ? 's' : ''} remaining.`;
+        uploadSection.classList.add('active');
+        document.getElementById('license-section').style.display = 'none';
+      } else {
+        licenseStatus.className = 'license-status invalid';
+        licenseStatus.textContent = '✗ No conversions remaining. Purchase more credits.';
+      }
+    } else {
+      licenseStatus.className = 'license-status invalid';
+      licenseStatus.textContent = '✗ Invalid license key. Please check and try again.';
+      localStorage.removeItem('mf_license');
+    }
+  } catch (err) {
+    console.error(err);
+    licenseStatus.className = 'license-status invalid';
+    licenseStatus.textContent = '✗ Error validating license. Please try again.';
+  }
+
+  document.getElementById('validate-btn').disabled = false;
+}
+
+// File handling
+uploadZone.addEventListener('click', () => fileInput.click());
+
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('dragover');
+});
+
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('dragover');
+});
+
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+function handleFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['docx', 'doc', 'md', 'markdown', 'txt'].includes(ext)) {
+    showError('Please upload a DOCX, Markdown, or TXT file.');
+    return;
+  }
+  selectedFile = file;
+  fileName.textContent = file.name;
+  fileInfo.classList.add('show');
+  uploadZone.classList.add('has-file');
+  updateConvertButton();
+  hideError();
+}
+
+function removeFile() {
+  selectedFile = null;
+  fileInput.value = '';
+  fileInfo.classList.remove('show');
+  uploadZone.classList.remove('has-file');
+  updateConvertButton();
+}
+
+function selectFormat(el, format) {
+  document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedFormat = format;
+  trimSelect.style.display = format === 'epub' ? 'none' : 'block';
+}
+
+function updateConvertButton() {
+  convertBtn.disabled = !selectedFile;
+}
+
+// Main conversion
+async function convertFile() {
+  if (!selectedFile || !validLicense) return;
+
+  hideError();
+  showProgress('Reading your manuscript...');
+
+  try {
+    // Read file
+    const content = await readFile(selectedFile);
+    const ext = selectedFile.name.split('.').pop().toLowerCase();
+
+    showProgress('Converting to HTML...');
+
+    // Convert to HTML
+    let html;
+    if (ext === 'docx' || ext === 'doc') {
+      const result = await mammoth.convertToHtml({ arrayBuffer: content });
+      html = result.value;
+    } else {
+      // Markdown or plain text
+      const text = new TextDecoder().decode(content);
+      html = marked.parse(text);
+    }
+
+    // Extract title from first heading or filename
+    const titleMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+    const title = titleMatch ? titleMatch[1] : selectedFile.name.replace(/\.[^.]+$/, '');
+
+    // Apply KDP-friendly formatting
+    html = formatForKDP(html, title);
+
+    const downloads = [];
+    const trimSize = document.getElementById('trim-size').value;
+
+    // Generate EPUB
+    if (selectedFormat === 'both' || selectedFormat === 'epub') {
+      showProgress('Generating EPUB...');
+      const epubBlob = await generateEPUB(html, title);
+      downloads.push({ name: `${sanitizeFilename(title)}.epub`, blob: epubBlob, type: 'EPUB' });
+    }
+
+    // Generate PDF
+    if (selectedFormat === 'both' || selectedFormat === 'pdf') {
+      showProgress('Generating PDF...');
+      const pdfBlob = await generatePDF(html, title, trimSize);
+      downloads.push({ name: `${sanitizeFilename(title)}.pdf`, blob: pdfBlob, type: 'PDF' });
+    }
+
+    // Decrement usage
+    showProgress('Finalizing...');
+    const useRes = await fetch(`${API_URL}/use`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        license_key: validLicense,
+        filename: selectedFile.name,
+        format_type: selectedFormat
+      })
+    });
+
+    const useData = await useRes.json();
+    usesRemaining = useData.uses_remaining;
+
+    // Show success
+    showSuccess(downloads);
+
+  } catch (err) {
+    console.error('Conversion error:', err);
+    showError('Conversion failed: ' + err.message);
+    hideProgress();
+    uploadSection.classList.add('active');
+  }
+}
+
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function formatForKDP(html, title) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 12pt;
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+    }
+    h1 { font-size: 24pt; margin: 2em 0 1em; text-align: center; page-break-before: always; }
+    h1:first-of-type { page-break-before: avoid; }
+    h2 { font-size: 18pt; margin: 1.5em 0 0.75em; }
+    h3 { font-size: 14pt; margin: 1.25em 0 0.5em; }
+    p { margin: 0 0 0.5em; text-indent: 1.5em; }
+    p:first-of-type, h1 + p, h2 + p, h3 + p { text-indent: 0; }
+    blockquote { margin: 1em 2em; font-style: italic; }
+    .chapter { page-break-before: always; }
+  </style>
+</head>
+<body>
+${html}
+</body>
+</html>`;
+}
+
+async function generateEPUB(html, title) {
+  const zip = new JSZip();
+
+  // mimetype (must be first and uncompressed)
+  zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
+
+  // META-INF/container.xml
+  zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`);
+
+  // OEBPS/content.opf
+  const uuid = 'urn:uuid:' + crypto.randomUUID();
+  zip.file('OEBPS/content.opf', `<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="uid">${uuid}</dc:identifier>
+    <dc:title>${escapeHtml(title)}</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">${new Date().toISOString().split('.')[0]}Z</meta>
+  </metadata>
+  <manifest>
+    <item id="content" href="content.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="style" href="style.css" media-type="text/css"/>
+  </manifest>
+  <spine>
+    <itemref idref="content"/>
+  </spine>
+</package>`);
+
+  // OEBPS/nav.xhtml
+  zip.file('OEBPS/nav.xhtml', `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+<head><title>Navigation</title></head>
+<body>
+<nav epub:type="toc" id="toc">
+  <h1>Table of Contents</h1>
+  <ol><li><a href="content.xhtml">${escapeHtml(title)}</a></li></ol>
+</nav>
+</body>
+</html>`);
+
+  // OEBPS/style.css
+  zip.file('OEBPS/style.css', `
+body { font-family: Georgia, serif; font-size: 1em; line-height: 1.6; margin: 1em; }
+h1 { font-size: 1.8em; text-align: center; margin: 2em 0 1em; }
+h2 { font-size: 1.4em; margin: 1.5em 0 0.5em; }
+h3 { font-size: 1.2em; margin: 1em 0 0.5em; }
+p { margin: 0 0 0.5em; text-indent: 1.5em; }
+`);
+
+  // OEBPS/content.xhtml
+  const xhtml = html.replace(/<!DOCTYPE html>/i, '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>')
+    .replace(/<html>/i, '<html xmlns="http://www.w3.org/1999/xhtml">')
+    .replace(/<br>/gi, '<br/>')
+    .replace(/<hr>/gi, '<hr/>')
+    .replace(/<img([^>]*)>/gi, '<img$1/>');
+  
+  zip.file('OEBPS/content.xhtml', xhtml);
+
+  return await zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' });
+}
+
+async function generatePDF(html, title, trimSize) {
+  const { jsPDF } = window.jspdf;
+
+  const sizes = {
+    '5x8': [5, 8],
+    '5.25x8': [5.25, 8],
+    '5.5x8.5': [5.5, 8.5],
+    '6x9': [6, 9],
+    '8.5x11': [8.5, 11]
+  };
+
+  const [width, height] = sizes[trimSize] || [6, 9];
+  const pdf = new jsPDF({
+    unit: 'in',
+    format: [width, height]
+  });
+
+  const margin = 0.75;
+  const lineHeight = 0.2;
+  const pageWidth = width - (margin * 2);
+  let y = margin;
+
+  const addText = (text, fontSize = 12, bold = false) => {
+    pdf.setFontSize(fontSize);
+    if (bold) pdf.setFont('helvetica', 'bold');
+    else pdf.setFont('times', 'normal');
+
+    const lines = pdf.splitTextToSize(text, pageWidth);
+    for (const line of lines) {
+      if (y > height - margin) {
+        pdf.addPage();
+        y = margin;
+      }
+      pdf.text(line, margin, y);
+      y += lineHeight * (fontSize / 12);
+    }
+  };
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const body = doc.body;
+
+  const processNode = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent.trim();
+      if (text) addText(text);
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const tag = node.tagName.toLowerCase();
+      
+      if (tag === 'h1') {
+        y += 0.5;
+        addText(node.textContent, 24, true);
+        y += 0.3;
+      } else if (tag === 'h2') {
+        y += 0.3;
+        addText(node.textContent, 18, true);
+        y += 0.2;
+      } else if (tag === 'h3') {
+        y += 0.2;
+        addText(node.textContent, 14, true);
+        y += 0.15;
+      } else if (tag === 'p') {
+        addText(node.textContent, 12);
+        y += 0.1;
+      } else if (tag === 'br') {
+        y += lineHeight;
+      } else {
+        for (const child of node.childNodes) {
+          processNode(child);
+        }
+      }
+    }
+  };
+
+  // Title page
+  pdf.setFontSize(28);
+  pdf.setFont('helvetica', 'bold');
+  const titleLines = pdf.splitTextToSize(title, pageWidth);
+  const titleY = height / 3;
+  titleLines.forEach((line, i) => {
+    pdf.text(line, width / 2, titleY + (i * 0.4), { align: 'center' });
+  });
+
+  pdf.addPage();
+  y = margin;
+
+  for (const child of body.childNodes) {
+    processNode(child);
+  }
+
+  return pdf.output('blob');
+}
+
+function sanitizeFilename(name) {
+  return name.replace(/[^a-z0-9_\-]/gi, '_').substring(0, 50);
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function showProgress(text) {
+  uploadSection.classList.remove('active');
+  successSection.classList.remove('active');
+  progressSection.classList.add('active');
+  progressText.textContent = text;
+}
+
+function hideProgress() {
+  progressSection.classList.remove('active');
+}
+
+function showSuccess(downloads) {
+  progressSection.classList.remove('active');
+  successSection.classList.add('active');
+
+  const btnsContainer = document.getElementById('download-btns');
+  btnsContainer.innerHTML = '';
+
+  downloads.forEach(d => {
+    const url = URL.createObjectURL(d.blob);
+    const btn = document.createElement('a');
+    btn.href = url;
+    btn.download = d.name;
+    btn.className = 'download-btn';
+    btn.innerHTML = `📥 Download ${d.type}`;
+    btnsContainer.appendChild(btn);
+  });
+
+  document.getElementById('uses-remaining').innerHTML = 
+    `You have <strong>${usesRemaining}</strong> conversion${usesRemaining !== 1 ? 's' : ''} remaining.`;
+}
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.classList.add('show');
+}
+
+function hideError() {
+  errorMsg.classList.remove('show');
+}
+
+function resetForm() {
+  successSection.classList.remove('active');
+  uploadSection.classList.add('active');
+  removeFile();
+  
+  if (usesRemaining <= 0) {
+    uploadSection.classList.remove('active');
+    document.getElementById('license-section').style.display = 'block';
+    licenseStatus.className = 'license-status invalid';
+    licenseStatus.textContent = '✗ No conversions remaining. Purchase more credits.';
+  }
+}
+</script>
+
+</body>
+</html>

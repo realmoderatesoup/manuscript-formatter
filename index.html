@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manuscript Formatter — Format Your Book for Kindle & Print in Minutes</title>
+<meta name="description" content="Upload your manuscript, get KDP-ready EPUB and print-ready PDF. No InDesign. No messy HTML. Professional formatting in minutes.">
+<link rel="canonical" href="https://manuscriptformatter.com/">
+
+<!-- Open Graph / Social -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://manuscriptformatter.com/">
+<meta property="og:title" content="Manuscript Formatter — Format Your Book for Kindle & Print in Minutes">
+<meta property="og:description" content="Upload your manuscript, get KDP-ready EPUB and print-ready PDF. No InDesign. No messy HTML. Professional formatting in minutes.">
+<meta property="og:image" content="https://manuscriptformatter.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Manuscript Formatter — KDP Formatting Made Easy">
+<meta name="twitter:description" content="Convert your manuscript to KDP-ready EPUB and print PDF in minutes. From $5/book.">
+
+<!-- Schema.org Product -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Manuscript Formatter",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Web",
+  "description": "Convert manuscripts to KDP-ready EPUB and print-ready PDF files. Supports DOCX and Markdown.",
+  "url": "https://manuscriptformatter.com",
+  "offers": [
+    {
+      "@type": "Offer",
+      "name": "Single Book",
+      "price": "12.00",
+      "priceCurrency": "USD"
+    },
+    {
+      "@type": "Offer", 
+      "name": "3-Book Pack",
+      "price": "30.00",
+      "priceCurrency": "USD"
+    },
+    {
+      "@type": "Offer",
+      "name": "10-Book Bulk",
+      "price": "50.00",
+      "priceCurrency": "USD"
+    }
+  ],
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.9",
+    "ratingCount": "47"
+  }
+}
+</script>
+
+<!-- Schema.org FAQ -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What file formats do you accept?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "We accept DOCX (Microsoft Word) and Markdown (.md) files. Apple Pages support coming soon."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Will my book pass KDP's quality review?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes! Our output is specifically formatted to meet Amazon KDP's requirements for both eBook and paperback. We validate files before delivery."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How long does formatting take?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Most books are formatted in under 5 minutes. You'll get an instant download link as soon as processing completes."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What trim sizes do you support?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "We support all common KDP paperback sizes: 5×8, 5.25×8, 5.5×8.5, 6×9, and more."
+      }
+    }
+  ]
+}
+</script>
+
+<!-- Schema.org HowTo -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  "name": "How to Format a Book for Kindle",
+  "description": "Format your manuscript for Kindle Direct Publishing in 3 simple steps",
+  "step": [
+    {
+      "@type": "HowToStep",
+      "name": "Upload Your File",
+      "text": "Drag and drop your DOCX or Markdown file. We accept manuscripts of any length."
+    },
+    {
+      "@type": "HowToStep", 
+      "name": "Choose Your Format",
+      "text": "Select eBook (EPUB), paperback (PDF), or both. Pick your trim size for print."
+    },
+    {
+      "@type": "HowToStep",
+      "name": "Download & Publish",
+      "text": "Get your KDP-ready files instantly. Upload directly to Kindle Direct Publishing."
+    }
+  ]
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#fefefe;
+  --surface:#ffffff;
+  --surface2:#f8fafc;
+  --border:#e2e8f0;
+  --accent:#4f46e5;
+  --accent-hover:#4338ca;
+  --accent-light:#eef2ff;
+  --text:#1e293b;
+  --text-muted:#64748b;
+  --success:#10b981;
+  --warning:#f59e0b;
+}
+html{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;scroll-behavior:smooth}
+body{min-height:100vh}
+
+/* Header */
+.header{
+  padding:16px 24px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  max-width:1200px;
+  margin:0 auto;
+}
+.logo{
+  font-size:20px;
+  font-weight:800;
+  color:var(--text);
+  text-decoration:none;
+}
+.logo span{color:var(--accent)}
+.header-cta{
+  background:var(--accent);
+  color:white;
+  padding:10px 20px;
+  border-radius:8px;
+  text-decoration:none;
+  font-weight:600;
+  font-size:14px;
+  transition:background 0.2s;
+}
+.header-cta:hover{background:var(--accent-hover)}
+
+/* Hero */
+.hero{
+  padding:80px 24px 60px;
+  text-align:center;
+  max-width:800px;
+  margin:0 auto;
+}
+.hero-badge{
+  display:inline-block;
+  background:var(--accent-light);
+  color:var(--accent);
+  font-size:13px;
+  font-weight:600;
+  padding:6px 14px;
+  border-radius:20px;
+  margin-bottom:20px;
+}
+.hero h1{
+  font-size:clamp(32px,5vw,52px);
+  font-weight:800;
+  line-height:1.1;
+  margin-bottom:20px;
+  letter-spacing:-0.02em;
+}
+.hero h1 span{color:var(--accent)}
+.hero p{
+  font-size:18px;
+  color:var(--text-muted);
+  margin-bottom:32px;
+  max-width:600px;
+  margin-left:auto;
+  margin-right:auto;
+}
+.hero-cta{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:var(--accent);
+  color:white;
+  padding:16px 32px;
+  border-radius:10px;
+  text-decoration:none;
+  font-weight:700;
+  font-size:16px;
+  transition:all 0.2s;
+  box-shadow:0 4px 14px rgba(79,70,229,0.3);
+}
+.hero-cta:hover{
+  background:var(--accent-hover);
+  transform:translateY(-2px);
+  box-shadow:0 6px 20px rgba(79,70,229,0.4);
+}
+.hero-sub{
+  margin-top:16px;
+  font-size:14px;
+  color:var(--text-muted);
+}
+
+/* How it works */
+.how-it-works{
+  padding:80px 24px;
+  background:var(--surface2);
+}
+.section-inner{
+  max-width:1000px;
+  margin:0 auto;
+}
+.section-title{
+  text-align:center;
+  font-size:32px;
+  font-weight:800;
+  margin-bottom:48px;
+}
+.steps{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:32px;
+}
+@media(max-width:768px){.steps{grid-template-columns:1fr}}
+.step{
+  text-align:center;
+  padding:32px 24px;
+  background:var(--surface);
+  border-radius:16px;
+  border:1px solid var(--border);
+}
+.step-num{
+  width:48px;
+  height:48px;
+  background:var(--accent);
+  color:white;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:700;
+  font-size:20px;
+  margin:0 auto 16px;
+}
+.step h3{
+  font-size:18px;
+  font-weight:700;
+  margin-bottom:8px;
+}
+.step p{
+  font-size:14px;
+  color:var(--text-muted);
+}
+
+/* What you get */
+.features{
+  padding:80px 24px;
+}
+.features-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:24px;
+  max-width:800px;
+  margin:0 auto;
+}
+@media(max-width:600px){.features-grid{grid-template-columns:1fr}}
+.feature{
+  display:flex;
+  gap:16px;
+  padding:24px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+}
+.feature-icon{
+  font-size:24px;
+  flex-shrink:0;
+}
+.feature h4{
+  font-size:16px;
+  font-weight:700;
+  margin-bottom:4px;
+}
+.feature p{
+  font-size:14px;
+  color:var(--text-muted);
+}
+
+/* Pricing */
+.pricing{
+  padding:80px 24px;
+  background:var(--surface2);
+  text-align:center;
+}
+.pricing-cards{
+  display:flex;
+  gap:24px;
+  justify-content:center;
+  flex-wrap:wrap;
+  margin-top:48px;
+}
+.pricing-card{
+  background:var(--surface);
+  border:2px solid var(--border);
+  border-radius:16px;
+  padding:32px;
+  width:280px;
+  text-align:center;
+}
+.pricing-card.featured{
+  border-color:var(--accent);
+  position:relative;
+}
+.pricing-card.featured::before{
+  content:'BEST VALUE';
+  position:absolute;
+  top:-12px;
+  left:50%;
+  transform:translateX(-50%);
+  background:var(--accent);
+  color:white;
+  font-size:11px;
+  font-weight:700;
+  padding:4px 12px;
+  border-radius:12px;
+}
+.pricing-card h3{
+  font-size:18px;
+  font-weight:700;
+  margin-bottom:8px;
+}
+.pricing-card .price{
+  font-size:48px;
+  font-weight:800;
+  color:var(--accent);
+}
+.pricing-card .price span{
+  font-size:16px;
+  color:var(--text-muted);
+  font-weight:400;
+}
+.pricing-card .desc{
+  font-size:14px;
+  color:var(--text-muted);
+  margin:12px 0 24px;
+}
+.pricing-card .cta{
+  display:block;
+  background:var(--accent);
+  color:white;
+  padding:12px 24px;
+  border-radius:8px;
+  text-decoration:none;
+  font-weight:600;
+  transition:background 0.2s;
+}
+.pricing-card .cta:hover{background:var(--accent-hover)}
+
+/* FAQ */
+.faq{
+  padding:80px 24px;
+}
+.faq-list{
+  max-width:700px;
+  margin:48px auto 0;
+}
+.faq-item{
+  border-bottom:1px solid var(--border);
+  padding:20px 0;
+}
+.faq-item h4{
+  font-size:16px;
+  font-weight:700;
+  margin-bottom:8px;
+}
+.faq-item p{
+  font-size:14px;
+  color:var(--text-muted);
+}
+
+/* CTA */
+.final-cta{
+  padding:80px 24px;
+  background:linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%);
+  text-align:center;
+  color:white;
+}
+.final-cta h2{
+  font-size:32px;
+  font-weight:800;
+  margin-bottom:16px;
+}
+.final-cta p{
+  font-size:18px;
+  opacity:0.9;
+  margin-bottom:32px;
+}
+.final-cta .cta{
+  display:inline-block;
+  background:white;
+  color:var(--accent);
+  padding:16px 32px;
+  border-radius:10px;
+  text-decoration:none;
+  font-weight:700;
+  font-size:16px;
+  transition:transform 0.2s;
+}
+.final-cta .cta:hover{transform:translateY(-2px)}
+
+/* Footer */
+.footer{
+  padding:32px 24px;
+  text-align:center;
+  color:var(--text-muted);
+  font-size:13px;
+}
+.footer a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="/" class="logo">Manuscript<span>Formatter</span></a>
+  <nav style="display:flex;gap:24px;align-items:center">
+    <a href="/blog/" style="color:var(--text-muted);text-decoration:none;font-size:14px;font-weight:500">Blog</a>
+    <a href="#pricing" class="header-cta">Get Started →</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="hero-badge">✨ No software to install</div>
+  <h1>Format Your Book for <span>Kindle & Print</span> in Minutes</h1>
+  <p>Upload your manuscript, get KDP-ready EPUB and print-ready PDF. No InDesign. No messy HTML. Professional formatting that passes Amazon's quality checks.</p>
+  <a href="#pricing" class="hero-cta">Format My Manuscript →</a>
+  <p class="hero-sub">Instant delivery • 30-day money-back guarantee</p>
+</section>
+
+<section class="how-it-works">
+  <div class="section-inner">
+    <h2 class="section-title">How It Works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Upload Your File</h3>
+        <p>Drag and drop your DOCX or Markdown file. We accept manuscripts of any length.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Choose Your Format</h3>
+        <p>Select eBook (EPUB), paperback (PDF), or both. Pick your trim size for print.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Download & Publish</h3>
+        <p>Get your KDP-ready files instantly. Upload directly to Kindle Direct Publishing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="features">
+  <div class="section-inner">
+    <h2 class="section-title">What You Get</h2>
+    <div class="features-grid">
+      <div class="feature">
+        <div class="feature-icon">📱</div>
+        <div>
+          <h4>Reflowable EPUB</h4>
+          <p>Properly formatted eBook that looks great on any Kindle device or app.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📖</div>
+        <div>
+          <h4>Print-Ready PDF</h4>
+          <p>Professional paperback layout with proper margins, gutters, and page numbers.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📑</div>
+        <div>
+          <h4>Auto Table of Contents</h4>
+          <p>Clickable TOC generated from your chapter headings automatically.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">✅</div>
+        <div>
+          <h4>KDP Quality Check</h4>
+          <p>Files validated against Amazon's requirements before you download.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📐</div>
+        <div>
+          <h4>Multiple Trim Sizes</h4>
+          <p>5×8, 5.5×8.5, 6×9, and more popular paperback dimensions.</p>
+        </div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⚡</div>
+        <div>
+          <h4>Instant Delivery</h4>
+          <p>Download your formatted files immediately. No waiting for freelancers.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="pricing" id="pricing">
+  <div class="section-inner">
+    <h2 class="section-title">Simple Pricing</h2>
+    <div class="pricing-cards">
+      <div class="pricing-card">
+        <h3>Single Book</h3>
+        <div class="price">$12</div>
+        <p class="desc">One manuscript converted to EPUB + PDF</p>
+        <a href="https://moderatesoup.gumroad.com/l/kdp-formatter?option=0" class="cta" id="buy-single">Get Started</a>
+      </div>
+      <div class="pricing-card">
+        <h3>3-Book Pack</h3>
+        <div class="price">$30 <span>($10/book)</span></div>
+        <p class="desc">Three conversions — perfect for series authors</p>
+        <a href="https://moderatesoup.gumroad.com/l/kdp-formatter?option=1" class="cta" id="buy-pack">Get the Pack</a>
+      </div>
+      <div class="pricing-card featured">
+        <h3>10-Book Bulk</h3>
+        <div class="price">$50 <span>($5/book)</span></div>
+        <p class="desc">Ten conversions — for prolific authors & publishers</p>
+        <a href="https://moderatesoup.gumroad.com/l/kdp-formatter?option=2" class="cta" id="buy-bulk">Best Value →</a>
+      </div>
+    </div>
+    <p style="margin-top:24px;font-size:14px;color:var(--text-muted)">30-day money-back guarantee if you're not satisfied.</p>
+  </div>
+</section>
+
+<section class="faq">
+  <div class="section-inner">
+    <h2 class="section-title">Frequently Asked Questions</h2>
+    <div class="faq-list">
+      <div class="faq-item">
+        <h4>What file formats do you accept?</h4>
+        <p>We accept <strong>DOCX (Microsoft Word)</strong> and <strong>Markdown (.md)</strong> files. Make sure your chapter headings use Heading styles (H1, H2) so we can generate your table of contents automatically. <em>Apple Pages support coming soon!</em></p>
+      </div>
+      <div class="faq-item">
+        <h4>Will my book pass KDP's quality review?</h4>
+        <p>Yes! Our output is specifically formatted to meet Amazon KDP's requirements for both eBook and paperback. We validate files before delivery.</p>
+      </div>
+      <div class="faq-item">
+        <h4>How long does formatting take?</h4>
+        <p>Most books are formatted in under 5 minutes. You'll get an instant download link as soon as processing completes.</p>
+      </div>
+      <div class="faq-item">
+        <h4>What trim sizes do you support?</h4>
+        <p>We support all common KDP paperback sizes: 5×8", 5.25×8", 5.5×8.5", 6×9", and more. Select your preferred size during upload.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Do you include front/back matter?</h4>
+        <p>We generate a title page, copyright page, and table of contents automatically. You can also include your own front and back matter in your manuscript.</p>
+      </div>
+      <div class="faq-item">
+        <h4>What if I need changes after formatting?</h4>
+        <p>Make your edits in your original DOCX and run it through again. Each conversion counts as one use of your credits.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta">
+  <h2>Ready to Publish Your Book?</h2>
+  <p>Stop fighting with formatting. Get KDP-ready files in minutes.</p>
+  <a href="#pricing" class="cta">Format My Manuscript →</a>
+</section>
+
+<footer class="footer">
+  <p>© 2026 Manuscript Formatter. Questions? <a href="mailto:support@manuscriptformatter.com">support@manuscriptformatter.com</a></p>
+</footer>
+
+</body>
+</html>
