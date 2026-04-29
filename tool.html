@@ -12,8 +12,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<!-- Paged.js is loaded inside the print preview iframe to avoid paginating the tool UI itself -->
+<!-- CDN: https://unpkg.com/pagedjs/dist/paged.polyfill.js -->
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -186,6 +186,59 @@ body{min-height:100vh;padding:24px}
 }
 .copy-toast.show{display:block;animation:fadeInUp 0.3s ease}
 @keyframes fadeInUp{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* Book metadata fields */
+.meta-fields{margin-bottom:24px}
+.meta-fields label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+.meta-fields .field{margin-bottom:14px}
+.meta-fields input[type=text],
+.meta-fields textarea{
+  width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;
+  font-size:14px;font-family:inherit
+}
+.meta-fields textarea{min-height:64px;resize:vertical}
+.meta-fields .hint{font-size:12px;color:var(--text-muted);margin-top:4px}
+
+.print-only-fields{display:none}
+.print-only-fields.show{display:block}
+
+/* Preview modal */
+.preview-modal{
+  position:fixed;inset:0;background:rgba(15,23,42,0.85);z-index:2000;
+  display:none;flex-direction:column
+}
+.preview-modal.show{display:flex}
+.preview-toolbar{
+  background:white;padding:12px 20px;display:flex;align-items:center;
+  justify-content:space-between;gap:16px;border-bottom:1px solid var(--border);
+  flex-wrap:wrap
+}
+.preview-toolbar .info{font-size:14px;color:var(--text-muted)}
+.preview-toolbar .info strong{color:var(--text)}
+.preview-toolbar .actions{display:flex;gap:10px}
+.preview-toolbar button{
+  padding:10px 18px;border:none;border-radius:8px;font-weight:600;
+  font-size:14px;cursor:pointer
+}
+.preview-toolbar .save-btn{background:var(--accent);color:white}
+.preview-toolbar .save-btn:hover{background:var(--accent-hover)}
+.preview-toolbar .save-btn:disabled{background:var(--border);cursor:not-allowed}
+.preview-toolbar .close-btn{background:white;color:var(--text);border:1px solid var(--border)}
+.preview-toolbar .close-btn:hover{background:var(--surface2)}
+.preview-frame-wrap{
+  flex:1;background:#475569;padding:20px;overflow:auto;
+  display:flex;justify-content:center;align-items:flex-start
+}
+.preview-frame{
+  width:100%;max-width:900px;height:100%;min-height:600px;
+  background:white;border:none;box-shadow:0 8px 32px rgba(0,0,0,0.3);
+  border-radius:4px
+}
+.preview-banner{
+  background:#fef3c7;color:#78350f;padding:12px 20px;font-size:13px;
+  border-bottom:1px solid #fcd34d;text-align:center
+}
+.preview-banner strong{font-weight:700}
 </style>
 </head>
 <body>
@@ -259,15 +312,44 @@ body{min-height:100vh;padding:24px}
         </div>
       </div>
 
-      <div class="trim-select" id="trim-select">
-        <label>Paperback Trim Size</label>
-        <select id="trim-size">
-          <option value="5x8">5" × 8" (Most Popular)</option>
-          <option value="5.25x8">5.25" × 8"</option>
-          <option value="5.5x8.5">5.5" × 8.5"</option>
-          <option value="6x9">6" × 9"</option>
-          <option value="8.5x11">8.5" × 11"</option>
-        </select>
+      <div class="meta-fields">
+        <div class="field">
+          <label>Book title <span style="font-weight:400;color:var(--text-muted);font-size:13px">(optional)</span></label>
+          <input type="text" id="meta-title" placeholder="Auto-detected from your manuscript if blank">
+        </div>
+        <div class="field">
+          <label>Author <span style="font-weight:400;color:var(--text-muted);font-size:13px">(optional)</span></label>
+          <input type="text" id="meta-author" placeholder="Your name as it appears on the cover">
+        </div>
+        <div class="field">
+          <label>Copyright text <span style="font-weight:400;color:var(--text-muted);font-size:13px">(optional)</span></label>
+          <textarea id="meta-copyright" placeholder="e.g. Copyright © 2026 Jane Doe. All rights reserved."></textarea>
+          <div class="hint">Leave blank to skip the copyright page.</div>
+        </div>
+      </div>
+
+      <div class="print-only-fields" id="print-only-fields">
+        <div class="trim-select" id="trim-select">
+          <label>Paperback Trim Size</label>
+          <select id="trim-size">
+            <option value="5x8">5" × 8" (Most Popular)</option>
+            <option value="5.25x8">5.25" × 8"</option>
+            <option value="5.5x8.5">5.5" × 8.5"</option>
+            <option value="6x9" selected>6" × 9"</option>
+            <option value="8.5x11">8.5" × 11"</option>
+          </select>
+        </div>
+        <div class="trim-select" style="margin-top:16px">
+          <label>Estimated page count <span style="font-weight:400;color:var(--text-muted);font-size:13px">(sets the binding gutter)</span></label>
+          <select id="page-tier">
+            <option value="150">Under 150 pages (0.375" gutter)</option>
+            <option value="300" selected>151–300 pages (0.5" gutter)</option>
+            <option value="500">301–500 pages (0.625" gutter)</option>
+            <option value="700">501–700 pages (0.75" gutter)</option>
+            <option value="828">701+ pages (0.875" gutter)</option>
+          </select>
+          <div class="hint" style="margin-top:6px">KDP requires a wider inside margin for thicker books so the spine binding doesn't swallow the text.</div>
+        </div>
       </div>
 
       <button class="convert-btn" id="convert-btn" onclick="convertFile()" disabled>
@@ -297,6 +379,22 @@ body{min-height:100vh;padding:24px}
 
 <div class="copy-toast" id="copy-toast">✓ License key copied!</div>
 
+<div class="preview-modal" id="preview-modal">
+  <div class="preview-toolbar">
+    <div class="info"><strong id="preview-title">Print Preview</strong> <span id="preview-page-count"></span></div>
+    <div class="actions">
+      <button class="close-btn" onclick="closePreview()">Close</button>
+      <button class="save-btn" id="preview-save-btn" onclick="savePreviewAsPdf()" disabled>Save as PDF</button>
+    </div>
+  </div>
+  <div class="preview-banner">
+    Click <strong>Save as PDF</strong> → in the print dialog, set <strong>Destination</strong> to <strong>"Save as PDF"</strong> and <strong>Margins</strong> to <strong>"None"</strong>. Headers and footers should be off.
+  </div>
+  <div class="preview-frame-wrap">
+    <iframe class="preview-frame" id="preview-frame" title="Print preview"></iframe>
+  </div>
+</div>
+
 <script>
 const API_URL = 'https://manuscript-validator.realmoderatesoup.workers.dev';
 
@@ -314,7 +412,6 @@ const fileInput = document.getElementById('file-input');
 const fileInfo = document.getElementById('file-info');
 const fileName = document.getElementById('file-name');
 const convertBtn = document.getElementById('convert-btn');
-const trimSelect = document.getElementById('trim-select');
 const progressSection = document.getElementById('progress-section');
 const progressText = document.getElementById('progress-text');
 const successSection = document.getElementById('success-section');
@@ -322,6 +419,9 @@ const errorMsg = document.getElementById('error-msg');
 
 // Check for saved license on load
 window.addEventListener('load', () => {
+  // Default selectedFormat is "both" → make sure print-only fields are visible.
+  document.getElementById('print-only-fields').classList.add('show');
+
   const savedLicense = localStorage.getItem('mf_license');
   if (savedLicense) {
     licenseInput.value = savedLicense;
@@ -494,14 +594,16 @@ function selectFormat(el, format) {
   document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
   el.classList.add('selected');
   selectedFormat = format;
-  trimSelect.style.display = format === 'epub' ? 'none' : 'block';
+  document.getElementById('print-only-fields').classList.toggle('show', format !== 'epub');
 }
 
 function updateConvertButton() {
   convertBtn.disabled = !selectedFile;
 }
 
-// Main conversion
+// ============================================================
+// Main conversion flow
+// ============================================================
 async function convertFile() {
   if (!selectedFile || !validLicense) return;
 
@@ -509,48 +611,34 @@ async function convertFile() {
   showProgress('Reading your manuscript...');
 
   try {
-    // Read file
     const content = await readFile(selectedFile);
     const ext = selectedFile.name.split('.').pop().toLowerCase();
 
     showProgress('Converting to HTML...');
-
-    // Convert to HTML
-    let html;
+    let bodyHtml;
     if (ext === 'docx' || ext === 'doc') {
       const result = await mammoth.convertToHtml({ arrayBuffer: content });
-      html = result.value;
+      bodyHtml = result.value;
     } else {
-      // Markdown or plain text
       const text = new TextDecoder().decode(content);
-      html = marked.parse(text);
+      bodyHtml = marked.parse(text);
     }
 
-    // Extract title from first heading or filename
-    const titleMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-    const title = titleMatch ? titleMatch[1] : selectedFile.name.replace(/\.[^.]+$/, '');
+    const meta = collectMetadata(bodyHtml);
+    const chapters = parseChapters(bodyHtml);
 
-    // Apply KDP-friendly formatting
-    html = formatForKDP(html, title);
-
-    const downloads = [];
-    const trimSize = document.getElementById('trim-size').value;
-
-    // Generate EPUB
-    if (selectedFormat === 'both' || selectedFormat === 'epub') {
-      showProgress('Generating EPUB...');
-      const epubBlob = await generateEPUB(html, title);
-      downloads.push({ name: `${sanitizeFilename(title)}.epub`, blob: epubBlob, type: 'EPUB' });
+    if (chapters.length === 0) {
+      throw new Error('No content found in your manuscript.');
     }
 
-    // Generate PDF
-    if (selectedFormat === 'both' || selectedFormat === 'pdf') {
-      showProgress('Generating PDF...');
-      const pdfBlob = await generatePDF(html, title, trimSize);
-      downloads.push({ name: `${sanitizeFilename(title)}.pdf`, blob: pdfBlob, type: 'PDF' });
-    }
+    const epubBlob = (selectedFormat === 'both' || selectedFormat === 'epub')
+      ? (showProgress('Generating EPUB...'), await generateEpub(meta, chapters))
+      : null;
 
-    // Decrement usage
+    const pdfHtml = (selectedFormat === 'both' || selectedFormat === 'pdf')
+      ? (showProgress('Building print preview...'), buildPdfHtml(meta, chapters, getPdfOptions()))
+      : null;
+
     showProgress('Finalizing...');
     const useRes = await fetch(`${API_URL}/use`, {
       method: 'POST',
@@ -561,12 +649,15 @@ async function convertFile() {
         format_type: selectedFormat
       })
     });
-
     const useData = await useRes.json();
     usesRemaining = useData.uses_remaining;
 
-    // Show success
-    showSuccess(downloads);
+    const downloads = [];
+    if (epubBlob) {
+      downloads.push({ name: `${sanitizeFilename(meta.title)}.epub`, blob: epubBlob, type: 'EPUB' });
+    }
+
+    showSuccess(downloads, pdfHtml ? { meta, html: pdfHtml } : null);
 
   } catch (err) {
     console.error('Conversion error:', err);
@@ -585,108 +676,32 @@ function readFile(file) {
   });
 }
 
-function formatForKDP(html, title) {
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>${escapeHtml(title)}</title>
-  <style>
-    body {
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: 12pt;
-      line-height: 1.6;
-      margin: 0;
-      padding: 0;
-    }
-    h1 { font-size: 24pt; margin: 2em 0 1em; text-align: center; page-break-before: always; }
-    h1:first-of-type { page-break-before: avoid; }
-    h2 { font-size: 18pt; margin: 1.5em 0 0.75em; }
-    h3 { font-size: 14pt; margin: 1.25em 0 0.5em; }
-    p { margin: 0 0 0.5em; text-indent: 1.5em; }
-    p:first-of-type, h1 + p, h2 + p, h3 + p { text-indent: 0; }
-    blockquote { margin: 1em 2em; font-style: italic; }
-    .chapter { page-break-before: always; }
-  </style>
-</head>
-<body>
-${html}
-</body>
-</html>`;
+// ============================================================
+// Metadata + chapter parsing
+// ============================================================
+function collectMetadata(bodyHtml) {
+  const titleInput = document.getElementById('meta-title').value.trim();
+  const authorInput = document.getElementById('meta-author').value.trim();
+  const copyrightInput = document.getElementById('meta-copyright').value.trim();
+
+  let title = titleInput;
+  if (!title) {
+    const m = bodyHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    title = m ? stripTags(m[1]).trim() : selectedFile.name.replace(/\.[^.]+$/, '');
+  }
+
+  return {
+    title: title || 'Untitled',
+    author: authorInput,
+    copyright: copyrightInput,
+    language: 'en',
+    uuid: 'urn:uuid:' + crypto.randomUUID(),
+    modified: new Date().toISOString().split('.')[0] + 'Z'
+  };
 }
 
-async function generateEPUB(html, title) {
-  const zip = new JSZip();
-
-  // mimetype (must be first and uncompressed)
-  zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
-
-  // META-INF/container.xml
-  zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>`);
-
-  // OEBPS/content.opf
-  const uuid = 'urn:uuid:' + crypto.randomUUID();
-  zip.file('OEBPS/content.opf', `<?xml version="1.0" encoding="UTF-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="uid">${uuid}</dc:identifier>
-    <dc:title>${escapeHtml(title)}</dc:title>
-    <dc:language>en</dc:language>
-    <meta property="dcterms:modified">${new Date().toISOString().split('.')[0]}Z</meta>
-  </metadata>
-  <manifest>
-    <item id="content" href="content.xhtml" media-type="application/xhtml+xml"/>
-    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    <item id="style" href="style.css" media-type="text/css"/>
-  </manifest>
-  <spine>
-    <itemref idref="content"/>
-  </spine>
-</package>`);
-
-  // OEBPS/nav.xhtml
-  zip.file('OEBPS/nav.xhtml', `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
-<head><title>Navigation</title></head>
-<body>
-<nav epub:type="toc" id="toc">
-  <h1>Table of Contents</h1>
-  <ol><li><a href="content.xhtml">${escapeHtml(title)}</a></li></ol>
-</nav>
-</body>
-</html>`);
-
-  // OEBPS/style.css
-  zip.file('OEBPS/style.css', `
-body { font-family: Georgia, serif; font-size: 1em; line-height: 1.6; margin: 1em; }
-h1 { font-size: 1.8em; text-align: center; margin: 2em 0 1em; }
-h2 { font-size: 1.4em; margin: 1.5em 0 0.5em; }
-h3 { font-size: 1.2em; margin: 1em 0 0.5em; }
-p { margin: 0 0 0.5em; text-indent: 1.5em; }
-`);
-
-  // OEBPS/content.xhtml
-  const xhtml = html.replace(/<!DOCTYPE html>/i, '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>')
-    .replace(/<html>/i, '<html xmlns="http://www.w3.org/1999/xhtml">')
-    .replace(/<br>/gi, '<br/>')
-    .replace(/<hr>/gi, '<hr/>')
-    .replace(/<img([^>]*)>/gi, '<img$1/>');
-  
-  zip.file('OEBPS/content.xhtml', xhtml);
-
-  return await zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' });
-}
-
-async function generatePDF(html, title, trimSize) {
-  const { jsPDF } = window.jspdf;
-
+function getPdfOptions() {
+  const trimSize = document.getElementById('trim-size').value;
   const sizes = {
     '5x8': [5, 8],
     '5.25x8': [5.25, 8],
@@ -694,87 +709,386 @@ async function generatePDF(html, title, trimSize) {
     '6x9': [6, 9],
     '8.5x11': [8.5, 11]
   };
-
   const [width, height] = sizes[trimSize] || [6, 9];
-  const pdf = new jsPDF({
-    unit: 'in',
-    format: [width, height]
-  });
 
-  const margin = 0.75;
-  const lineHeight = 0.2;
-  const pageWidth = width - (margin * 2);
-  let y = margin;
+  // KDP gutter requirements by page count tier (max page in tier => gutter inches)
+  const pageTier = parseInt(document.getElementById('page-tier').value, 10);
+  const gutter =
+    pageTier <= 150 ? 0.375 :
+    pageTier <= 300 ? 0.5 :
+    pageTier <= 500 ? 0.625 :
+    pageTier <= 700 ? 0.75 :
+                      0.875;
 
-  const addText = (text, fontSize = 12, bold = false) => {
-    pdf.setFontSize(fontSize);
-    if (bold) pdf.setFont('helvetica', 'bold');
-    else pdf.setFont('times', 'normal');
+  return { width, height, gutter, outerMargin: 0.5, topMargin: 0.75, bottomMargin: 0.75 };
+}
 
-    const lines = pdf.splitTextToSize(text, pageWidth);
-    for (const line of lines) {
-      if (y > height - margin) {
-        pdf.addPage();
-        y = margin;
-      }
-      pdf.text(line, margin, y);
-      y += lineHeight * (fontSize / 12);
+// Split mammoth/marked HTML into chapters at H1 boundaries.
+// Anything before the first H1 (front matter / introduction) becomes "chapter 0" and is rendered as-is.
+function parseChapters(bodyHtml) {
+  const doc = new DOMParser().parseFromString(`<div>${bodyHtml}</div>`, 'text/html');
+  const root = doc.body.firstElementChild;
+  const chapters = [];
+  let current = null;
+
+  for (const node of Array.from(root.childNodes)) {
+    if (node.nodeType === 1 && node.tagName === 'H1') {
+      if (current) chapters.push(current);
+      current = { title: node.textContent.trim(), nodes: [] };
+    } else {
+      if (!current) current = { title: '', nodes: [] };
+      current.nodes.push(node);
     }
-  };
+  }
+  if (current) chapters.push(current);
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const body = doc.body;
+  // Serialize chapter contents back to HTML strings.
+  return chapters.map((ch, i) => ({
+    index: i + 1,
+    title: ch.title || `Chapter ${i + 1}`,
+    hasTitle: !!ch.title,
+    bodyHtml: ch.nodes.map(n => n.nodeType === 1 ? n.outerHTML : escapeHtml(n.textContent)).join('')
+  }));
+}
 
-  const processNode = (node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent.trim();
-      if (text) addText(text);
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const tag = node.tagName.toLowerCase();
-      
-      if (tag === 'h1') {
-        y += 0.5;
-        addText(node.textContent, 24, true);
-        y += 0.3;
-      } else if (tag === 'h2') {
-        y += 0.3;
-        addText(node.textContent, 18, true);
-        y += 0.2;
-      } else if (tag === 'h3') {
-        y += 0.2;
-        addText(node.textContent, 14, true);
-        y += 0.15;
-      } else if (tag === 'p') {
-        addText(node.textContent, 12);
-        y += 0.1;
-      } else if (tag === 'br') {
-        y += lineHeight;
-      } else {
-        for (const child of node.childNodes) {
-          processNode(child);
-        }
-      }
-    }
-  };
+function stripTags(s) {
+  return s.replace(/<[^>]+>/g, '');
+}
 
-  // Title page
-  pdf.setFontSize(28);
-  pdf.setFont('helvetica', 'bold');
-  const titleLines = pdf.splitTextToSize(title, pageWidth);
-  const titleY = height / 3;
-  titleLines.forEach((line, i) => {
-    pdf.text(line, width / 2, titleY + (i * 0.4), { align: 'center' });
-  });
+// ============================================================
+// EPUB generation (multi-chapter, real TOC)
+// ============================================================
+async function generateEpub(meta, chapters) {
+  const zip = new JSZip();
 
-  pdf.addPage();
-  y = margin;
+  // mimetype must be first and uncompressed
+  zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
 
-  for (const child of body.childNodes) {
-    processNode(child);
+  zip.file('META-INF/container.xml',
+`<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`);
+
+  zip.file('OEBPS/style.css', epubCss());
+
+  const titlePageId = 'title-page';
+  const copyrightId = 'copyright';
+  const navId = 'nav';
+  const chapterIds = chapters.map((_, i) => `ch${String(i + 1).padStart(3, '0')}`);
+  const chapterHrefs = chapterIds.map(id => `${id}.xhtml`);
+
+  zip.file('OEBPS/title-page.xhtml', xhtmlDoc('Title Page', `
+    <section epub:type="titlepage" class="titlepage">
+      <h1 class="book-title">${escapeXml(meta.title)}</h1>
+      ${meta.author ? `<p class="book-author">${escapeXml(meta.author)}</p>` : ''}
+    </section>
+  `));
+
+  if (meta.copyright) {
+    zip.file('OEBPS/copyright.xhtml', xhtmlDoc('Copyright', `
+      <section epub:type="copyright-page" class="copyright">
+        ${escapeXml(meta.copyright).split(/\n+/).map(p => `<p>${p}</p>`).join('\n        ')}
+      </section>
+    `));
   }
 
-  return pdf.output('blob');
+  // Chapter files
+  chapters.forEach((ch, i) => {
+    const id = chapterIds[i];
+    zip.file(`OEBPS/${id}.xhtml`, xhtmlDoc(ch.title, `
+      <section epub:type="chapter" class="chapter" id="${id}">
+        <h1 class="chapter-title">${escapeXml(ch.title)}</h1>
+        ${sanitizeForXhtml(ch.bodyHtml)}
+      </section>
+    `));
+  });
+
+  // Navigation document with real TOC
+  const tocItems = [
+    `<li><a href="title-page.xhtml">Title Page</a></li>`,
+    ...(meta.copyright ? [`<li><a href="copyright.xhtml">Copyright</a></li>`] : []),
+    ...chapters.map((ch, i) =>
+      `<li><a href="${chapterHrefs[i]}">${escapeXml(ch.title)}</a></li>`
+    )
+  ].join('\n        ');
+
+  zip.file('OEBPS/nav.xhtml',
+`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="${meta.language}">
+<head>
+  <meta charset="utf-8"/>
+  <title>Table of Contents</title>
+  <link rel="stylesheet" type="text/css" href="style.css"/>
+</head>
+<body>
+  <nav epub:type="toc" id="toc">
+    <h1>Contents</h1>
+    <ol>
+        ${tocItems}
+    </ol>
+  </nav>
+</body>
+</html>`);
+
+  // Package document — manifest + spine
+  const manifestItems = [
+    `<item id="${titlePageId}" href="title-page.xhtml" media-type="application/xhtml+xml"/>`,
+    ...(meta.copyright ? [`<item id="${copyrightId}" href="copyright.xhtml" media-type="application/xhtml+xml"/>`] : []),
+    `<item id="${navId}" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>`,
+    `<item id="css" href="style.css" media-type="text/css"/>`,
+    ...chapters.map((_, i) =>
+      `<item id="${chapterIds[i]}" href="${chapterHrefs[i]}" media-type="application/xhtml+xml"/>`
+    )
+  ].join('\n    ');
+
+  const spineItems = [
+    `<itemref idref="${titlePageId}"/>`,
+    ...(meta.copyright ? [`<itemref idref="${copyrightId}"/>`] : []),
+    `<itemref idref="${navId}"/>`,
+    ...chapterIds.map(id => `<itemref idref="${id}"/>`)
+  ].join('\n    ');
+
+  zip.file('OEBPS/package.opf',
+`<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid" xml:lang="${meta.language}">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="uid">${meta.uuid}</dc:identifier>
+    <dc:title>${escapeXml(meta.title)}</dc:title>
+    <dc:language>${meta.language}</dc:language>
+    ${meta.author ? `<dc:creator>${escapeXml(meta.author)}</dc:creator>` : ''}
+    <meta property="dcterms:modified">${meta.modified}</meta>
+  </metadata>
+  <manifest>
+    ${manifestItems}
+  </manifest>
+  <spine>
+    ${spineItems}
+  </spine>
+</package>`);
+
+  return await zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' });
+}
+
+function xhtmlDoc(title, body) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>${escapeXml(title)}</title>
+  <link rel="stylesheet" type="text/css" href="style.css"/>
+</head>
+<body>
+${body}
+</body>
+</html>`;
+}
+
+function epubCss() {
+  return `body { font-family: Georgia, "Times New Roman", serif; line-height: 1.55; margin: 1em; }
+h1, h2, h3 { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+h1.book-title { font-size: 2.2em; text-align: center; margin: 3em 0 0.4em; }
+h1.chapter-title { font-size: 1.7em; text-align: center; margin: 2.5em 0 1.5em; }
+h2 { font-size: 1.3em; margin: 1.5em 0 0.5em; }
+h3 { font-size: 1.1em; margin: 1.25em 0 0.4em; }
+p { margin: 0; text-indent: 1.4em; text-align: justify; }
+h1 + p, h2 + p, h3 + p, .chapter > p:first-of-type, blockquote + p { text-indent: 0; }
+blockquote { margin: 1em 1.5em; font-style: italic; }
+.book-author { text-align: center; font-size: 1.2em; margin-top: 1em; font-style: italic; }
+.copyright p { text-indent: 0; text-align: center; font-size: 0.9em; margin-bottom: 0.5em; }
+.chapter { page-break-before: always; }
+nav#toc h1 { text-align: center; }
+nav#toc ol { list-style: none; padding-left: 0; }
+nav#toc li { margin: 0.5em 0; }
+nav#toc a { text-decoration: none; }
+img { max-width: 100%; }
+`;
+}
+
+// Make body HTML XHTML-safe: self-close void elements, fix unclosed <br>/<hr>/<img>.
+function sanitizeForXhtml(html) {
+  return html
+    .replace(/<br(\s[^>]*)?>/gi, '<br$1/>')
+    .replace(/<hr(\s[^>]*)?>/gi, '<hr$1/>')
+    .replace(/<img([^>]*?)\/?>/gi, '<img$1/>')
+    .replace(/<input([^>]*?)\/?>/gi, '<input$1/>')
+    .replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
+}
+
+function escapeXml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+// ============================================================
+// PDF generation (Paged.js print-ready HTML, rendered in iframe)
+// ============================================================
+function buildPdfHtml(meta, chapters, opts) {
+  const { width, height, gutter, outerMargin, topMargin, bottomMargin } = opts;
+
+  const titlePage = `
+    <section class="title-page">
+      <h1 class="book-title">${escapeHtml(meta.title)}</h1>
+      ${meta.author ? `<p class="book-author">${escapeHtml(meta.author)}</p>` : ''}
+    </section>`;
+
+  const copyrightPage = meta.copyright ? `
+    <section class="copyright-page">
+      ${meta.copyright.split(/\n+/).map(p => `<p>${escapeHtml(p)}</p>`).join('\n      ')}
+    </section>` : '';
+
+  const tocPage = `
+    <section class="toc-page">
+      <h1>Contents</h1>
+      <ol>
+        ${chapters.map((ch, i) =>
+          `<li><a href="#ch${i + 1}">${escapeHtml(ch.title)}</a></li>`
+        ).join('\n        ')}
+      </ol>
+    </section>`;
+
+  const chapterSections = chapters.map((ch, i) => `
+    <section class="chapter" id="ch${i + 1}">
+      <h1 class="chapter-title">${escapeHtml(ch.title)}</h1>
+      ${ch.bodyHtml}
+    </section>`).join('\n');
+
+  // Print CSS — passed to Paged.js Previewer as a separate stylesheet because
+  // the polyfill's automatic <style> scanning does not reliably honor @page
+  // rules when the document is loaded via srcdoc.
+  //
+  // Note: We deliberately avoid string-set + content(string(...)) margin boxes
+  // because they crash Paged.js 0.4 with "item doesn't belong to list" in the
+  // Following handler. Page numbers via counter(page) work fine.
+  const printCss = `
+@page {
+  size: ${width}in ${height}in;
+  margin: ${topMargin}in ${outerMargin}in ${bottomMargin}in ${gutter}in;
+}
+@page :left {
+  margin-left: ${outerMargin}in;
+  margin-right: ${gutter}in;
+  @bottom-left { content: counter(page); font-size: 9pt; }
+}
+@page :right {
+  margin-left: ${gutter}in;
+  margin-right: ${outerMargin}in;
+  @bottom-right { content: counter(page); font-size: 9pt; }
+}
+@page :first {
+  @bottom-left { content: none; }
+  @bottom-right { content: none; }
+}
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 11pt;
+  line-height: 1.45;
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  orphans: 3;
+  widows: 3;
+  margin: 0;
+  color: #111;
+}
+h1, h2, h3 {
+  font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+  text-align: center;
+  page-break-after: avoid;
+}
+p { margin: 0; text-indent: 1.4em; }
+/* Note: adjacent-sibling selectors (h1 + p, blockquote + p) crash Paged.js 0.4
+   inside the Following handler. Use :first-of-type which targets the same
+   chapter-opening paragraph without triggering the bug. */
+.chapter > p:first-of-type, .title-page p, .copyright-page p { text-indent: 0; }
+blockquote { margin: 0.8em 1.5em; font-style: italic; }
+img { max-width: 100%; height: auto; }
+ul, ol { margin: 0.5em 0 0.5em 2em; }
+.title-page {
+  page-break-after: always;
+  text-align: center;
+  padding-top: 2in;
+}
+.title-page .book-title { font-size: 28pt; font-weight: 700; margin: 0 0 1em; }
+.title-page .book-author { font-size: 14pt; font-style: italic; margin: 0; }
+.copyright-page {
+  page-break-before: always;
+  page-break-after: always;
+  padding-top: 4in;
+  font-size: 9pt;
+  text-align: center;
+}
+.copyright-page p { text-indent: 0; margin: 0 0 0.5em; }
+.toc-page {
+  page-break-before: always;
+  page-break-after: always;
+}
+.toc-page h1 { font-size: 22pt; margin: 1in 0 1em; }
+.toc-page ol { list-style: none; padding: 0 1in; }
+.toc-page li { margin: 0.6em 0; font-size: 11pt; }
+.toc-page a { text-decoration: none; color: #111; }
+.chapter {
+  /* Note: 'always' rather than 'right' — Paged.js 0.4 crashes when
+     'right'/'left' page breaks are combined with adjacent sibling selectors
+     (h1 + p) elsewhere in the stylesheet. Chapters will start on whichever
+     page comes next instead of always on a recto page. */
+  page-break-before: always;
+}
+.chapter-title {
+  font-size: 24pt;
+  font-weight: 700;
+  margin: 1.5in 0 1.2em;
+}
+.chapter > p:first-of-type::first-letter {
+  float: left;
+  font-size: 3.4em;
+  line-height: 0.85;
+  font-weight: 700;
+  padding: 0.05em 0.08em 0 0;
+}
+`;
+
+  const sourceHtml = `${titlePage}${copyrightPage}${tocPage}${chapterSections}`;
+
+  // Source content is held in a <template> so its children live in a detached
+  // DocumentFragment. Paged.js reliably accepts a cloned fragment as input;
+  // passing a live DOM element triggers an internal "item doesn't belong to
+  // list" error when the same node tree is also the renderTo.
+  return `<!DOCTYPE html>
+<html lang="${meta.language}">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml(meta.title)}</title>
+</head>
+<body>
+<template id="pdf-source">${sourceHtml}</template>
+<script>window.PagedConfig = { auto: false };</` + `script>
+<script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"></` + `script>
+<script>
+(async () => {
+  try {
+    const css = ${JSON.stringify(printCss)};
+    const cssUrl = 'data:text/css;base64,' + btoa(unescape(encodeURIComponent(css)));
+    const tpl = document.getElementById('pdf-source');
+    const previewer = new Paged.Previewer();
+    const flow = await previewer.preview(tpl.content.cloneNode(true), [cssUrl], document.body);
+    tpl.remove();
+    parent.postMessage({ type: 'pagedjs-done', pages: flow.total }, '*');
+  } catch (e) {
+    parent.postMessage({ type: 'pagedjs-error', message: e.message, stack: e.stack }, '*');
+  }
+})();
+</` + `script>
+</body>
+</html>`;
 }
 
 function sanitizeFilename(name) {
@@ -796,7 +1110,10 @@ function hideProgress() {
   progressSection.classList.remove('active');
 }
 
-function showSuccess(downloads) {
+// Holds the most recently built print job so the preview button can re-open it.
+let pendingPrintJob = null;
+
+function showSuccess(downloads, printJob) {
   progressSection.classList.remove('active');
   successSection.classList.add('active');
 
@@ -813,9 +1130,67 @@ function showSuccess(downloads) {
     btnsContainer.appendChild(btn);
   });
 
-  document.getElementById('uses-remaining').innerHTML = 
+  if (printJob) {
+    pendingPrintJob = printJob;
+    const btn = document.createElement('button');
+    btn.className = 'download-btn';
+    btn.innerHTML = '📖 Preview &amp; Save PDF';
+    btn.onclick = () => openPreview(printJob);
+    btnsContainer.appendChild(btn);
+    // Auto-open the preview so the user immediately sees the paginated book.
+    setTimeout(() => openPreview(printJob), 100);
+  } else {
+    pendingPrintJob = null;
+  }
+
+  document.getElementById('uses-remaining').innerHTML =
     `You have <strong>${usesRemaining}</strong> conversion${usesRemaining !== 1 ? 's' : ''} remaining.`;
 }
+
+// ============================================================
+// Print preview modal — renders Paged.js inside an iframe
+// ============================================================
+function openPreview(job) {
+  const modal = document.getElementById('preview-modal');
+  const frame = document.getElementById('preview-frame');
+  const titleEl = document.getElementById('preview-title');
+  const pageCountEl = document.getElementById('preview-page-count');
+  const saveBtn = document.getElementById('preview-save-btn');
+
+  titleEl.textContent = `${job.meta.title} — Print Preview`;
+  pageCountEl.textContent = '(paginating…)';
+  saveBtn.disabled = true;
+  frame.srcdoc = job.html;
+  modal.classList.add('show');
+}
+
+function closePreview() {
+  const modal = document.getElementById('preview-modal');
+  const frame = document.getElementById('preview-frame');
+  modal.classList.remove('show');
+  frame.srcdoc = '';
+}
+
+function savePreviewAsPdf() {
+  const frame = document.getElementById('preview-frame');
+  if (!frame.contentWindow) return;
+  frame.contentWindow.focus();
+  frame.contentWindow.print();
+}
+
+// Listen for pagination messages from the iframe.
+window.addEventListener('message', (e) => {
+  if (!e || !e.data) return;
+  const pageCountEl = document.getElementById('preview-page-count');
+  const saveBtn = document.getElementById('preview-save-btn');
+  if (e.data.type === 'pagedjs-done') {
+    pageCountEl.textContent = `(${e.data.pages} page${e.data.pages !== 1 ? 's' : ''})`;
+    saveBtn.disabled = false;
+  } else if (e.data.type === 'pagedjs-error') {
+    pageCountEl.textContent = `(pagination failed: ${e.data.message})`;
+    console.error('Paged.js error:', e.data.message, e.data.stack);
+  }
+});
 
 function showError(msg) {
   errorMsg.textContent = msg;
