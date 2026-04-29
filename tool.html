@@ -961,12 +961,14 @@ function buildPdfHtml(meta, chapters, opts) {
       ${ch.bodyHtml}
     </section>`).join('\n');
 
-  return `<!DOCTYPE html>
-<html lang="${meta.language}">
-<head>
-<meta charset="UTF-8">
-<title>${escapeHtml(meta.title)}</title>
-<style>
+  // Print CSS — passed to Paged.js Previewer as a separate stylesheet because
+  // the polyfill's automatic <style> scanning does not reliably honor @page
+  // rules when the document is loaded via srcdoc.
+  //
+  // Note: We deliberately avoid string-set + content(string(...)) margin boxes
+  // because they crash Paged.js 0.4 with "item doesn't belong to list" in the
+  // Following handler. Page numbers via counter(page) work fine.
+  const printCss = `
 @page {
   size: ${width}in ${height}in;
   margin: ${topMargin}in ${outerMargin}in ${bottomMargin}in ${gutter}in;
@@ -974,28 +976,19 @@ function buildPdfHtml(meta, chapters, opts) {
 @page :left {
   margin-left: ${outerMargin}in;
   margin-right: ${gutter}in;
-  @top-center { content: string(book-title); font-size: 9pt; font-style: italic; color: #555; }
   @bottom-left { content: counter(page); font-size: 9pt; }
 }
 @page :right {
   margin-left: ${gutter}in;
   margin-right: ${outerMargin}in;
-  @top-center { content: string(chapter-title); font-size: 9pt; font-style: italic; color: #555; }
   @bottom-right { content: counter(page); font-size: 9pt; }
 }
 @page :first {
-  @top-center { content: none; }
   @bottom-left { content: none; }
   @bottom-right { content: none; }
 }
-@page front-matter {
-  @top-center { content: none; }
-  @bottom-left { content: none; }
-  @bottom-right { content: none; }
-}
-html { string-set: book-title "${escapeHtml(meta.title).replace(/"/g, '\\"')}"; }
 body {
-  font-family: "Crimson Pro", Georgia, "Times New Roman", serif;
+  font-family: Georgia, "Times New Roman", serif;
   font-size: 11pt;
   line-height: 1.45;
   text-align: justify;
@@ -1012,45 +1005,47 @@ h1, h2, h3 {
   page-break-after: avoid;
 }
 p { margin: 0; text-indent: 1.4em; }
-h1 + p, h2 + p, h3 + p, .chapter > p:first-of-type, blockquote + p { text-indent: 0; }
+/* Note: adjacent-sibling selectors (h1 + p, blockquote + p) crash Paged.js 0.4
+   inside the Following handler. Use :first-of-type which targets the same
+   chapter-opening paragraph without triggering the bug. */
+.chapter > p:first-of-type, .title-page p, .copyright-page p { text-indent: 0; }
 blockquote { margin: 0.8em 1.5em; font-style: italic; }
 img { max-width: 100%; height: auto; }
 ul, ol { margin: 0.5em 0 0.5em 2em; }
 .title-page {
-  page: front-matter;
-  break-before: right;
-  break-after: page;
+  page-break-after: always;
   text-align: center;
-  padding-top: 3in;
+  padding-top: 2in;
 }
 .title-page .book-title { font-size: 28pt; font-weight: 700; margin: 0 0 1em; }
 .title-page .book-author { font-size: 14pt; font-style: italic; margin: 0; }
 .copyright-page {
-  page: front-matter;
-  break-before: page;
-  break-after: page;
-  padding-top: 5in;
+  page-break-before: always;
+  page-break-after: always;
+  padding-top: 4in;
   font-size: 9pt;
   text-align: center;
 }
 .copyright-page p { text-indent: 0; margin: 0 0 0.5em; }
 .toc-page {
-  page: front-matter;
-  break-before: right;
-  break-after: page;
+  page-break-before: always;
+  page-break-after: always;
 }
-.toc-page h1 { font-size: 22pt; margin: 1.5in 0 1em; }
-.toc-page ol { list-style: none; padding: 0 1in; counter-reset: toc; }
+.toc-page h1 { font-size: 22pt; margin: 1in 0 1em; }
+.toc-page ol { list-style: none; padding: 0 1in; }
 .toc-page li { margin: 0.6em 0; font-size: 11pt; }
 .toc-page a { text-decoration: none; color: #111; }
 .chapter {
-  break-before: right;
+  /* Note: 'always' rather than 'right' — Paged.js 0.4 crashes when
+     'right'/'left' page breaks are combined with adjacent sibling selectors
+     (h1 + p) elsewhere in the stylesheet. Chapters will start on whichever
+     page comes next instead of always on a recto page. */
+  page-break-before: always;
 }
 .chapter-title {
-  string-set: chapter-title content();
   font-size: 24pt;
   font-weight: 700;
-  margin: 2in 0 1.5em;
+  margin: 1.5in 0 1.2em;
 }
 .chapter > p:first-of-type::first-letter {
   float: left;
@@ -1059,22 +1054,39 @@ ul, ol { margin: 0.5em 0 0.5em 2em; }
   font-weight: 700;
   padding: 0.05em 0.08em 0 0;
 }
-</style>
+`;
+
+  const sourceHtml = `${titlePage}${copyrightPage}${tocPage}${chapterSections}`;
+
+  // Source content is held in a <template> so its children live in a detached
+  // DocumentFragment. Paged.js reliably accepts a cloned fragment as input;
+  // passing a live DOM element triggers an internal "item doesn't belong to
+  // list" error when the same node tree is also the renderTo.
+  return `<!DOCTYPE html>
+<html lang="${meta.language}">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml(meta.title)}</title>
 </head>
 <body>
-${titlePage}
-${copyrightPage}
-${tocPage}
-${chapterSections}
-<script>
-window.PagedConfig = {
-  auto: true,
-  after: function(flow) {
-    parent.postMessage({ type: 'pagedjs-done', pages: flow.total }, '*');
-  }
-};
-</` + `script>
+<template id="pdf-source">${sourceHtml}</template>
+<script>window.PagedConfig = { auto: false };</` + `script>
 <script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"></` + `script>
+<script>
+(async () => {
+  try {
+    const css = ${JSON.stringify(printCss)};
+    const cssUrl = 'data:text/css;base64,' + btoa(unescape(encodeURIComponent(css)));
+    const tpl = document.getElementById('pdf-source');
+    const previewer = new Paged.Previewer();
+    const flow = await previewer.preview(tpl.content.cloneNode(true), [cssUrl], document.body);
+    tpl.remove();
+    parent.postMessage({ type: 'pagedjs-done', pages: flow.total }, '*');
+  } catch (e) {
+    parent.postMessage({ type: 'pagedjs-error', message: e.message, stack: e.stack }, '*');
+  }
+})();
+</` + `script>
 </body>
 </html>`;
 }
@@ -1166,13 +1178,17 @@ function savePreviewAsPdf() {
   frame.contentWindow.print();
 }
 
-// Listen for "pagination complete" message from the iframe.
+// Listen for pagination messages from the iframe.
 window.addEventListener('message', (e) => {
-  if (e && e.data && e.data.type === 'pagedjs-done') {
-    const pageCountEl = document.getElementById('preview-page-count');
-    const saveBtn = document.getElementById('preview-save-btn');
+  if (!e || !e.data) return;
+  const pageCountEl = document.getElementById('preview-page-count');
+  const saveBtn = document.getElementById('preview-save-btn');
+  if (e.data.type === 'pagedjs-done') {
     pageCountEl.textContent = `(${e.data.pages} page${e.data.pages !== 1 ? 's' : ''})`;
     saveBtn.disabled = false;
+  } else if (e.data.type === 'pagedjs-error') {
+    pageCountEl.textContent = `(pagination failed: ${e.data.message})`;
+    console.error('Paged.js error:', e.data.message, e.data.stack);
   }
 });
 
