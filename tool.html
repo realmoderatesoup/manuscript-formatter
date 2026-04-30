@@ -402,6 +402,9 @@ let validLicense = null;
 let selectedFile = null;
 let selectedFormat = 'both';
 let usesRemaining = 0;
+// True after /use has been called for the current conversion. Prevents one
+// click of "Save PDF" + one click of "Download EPUB" from billing twice.
+let creditConsumed = false;
 
 // DOM elements
 const licenseInput = document.getElementById('license-key');
@@ -639,18 +642,9 @@ async function convertFile() {
       ? (showProgress('Building print preview...'), buildPdfHtml(meta, chapters, getPdfOptions()))
       : null;
 
-    showProgress('Finalizing...');
-    const useRes = await fetch(`${API_URL}/use`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        license_key: validLicense,
-        filename: selectedFile.name,
-        format_type: selectedFormat
-      })
-    });
-    const useData = await useRes.json();
-    usesRemaining = useData.uses_remaining;
+    // Credit is NOT consumed here — only when the user clicks Download EPUB
+    // or Save as PDF in the preview. See consumeCredit() below.
+    creditConsumed = false;
 
     const downloads = [];
     if (epubBlob) {
@@ -664,6 +658,41 @@ async function convertFile() {
     showError('Conversion failed: ' + err.message);
     hideProgress();
     uploadSection.classList.add('active');
+  }
+}
+
+// Called the first time the user clicks Download EPUB or Save as PDF for the
+// current conversion. Subsequent calls within the same conversion are no-ops,
+// so the user only pays one credit per conversion regardless of how many
+// downloads they trigger. If the API call fails, we still let the download
+// proceed — the license was validated upfront, so the worst case is that
+// the customer's "uses remaining" display is briefly stale.
+async function consumeCredit() {
+  if (creditConsumed) return true;
+  creditConsumed = true;  // Optimistic — prevents racing double-clicks
+  try {
+    const useRes = await fetch(`${API_URL}/use`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        license_key: validLicense,
+        filename: selectedFile ? selectedFile.name : '',
+        format_type: selectedFormat
+      })
+    });
+    const useData = await useRes.json();
+    if (typeof useData.uses_remaining === 'number') {
+      usesRemaining = useData.uses_remaining;
+      const el = document.getElementById('uses-remaining');
+      if (el) {
+        el.innerHTML =
+          `You have <strong>${usesRemaining}</strong> conversion${usesRemaining !== 1 ? 's' : ''} remaining.`;
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error('Credit consumption failed (download proceeding anyway):', err);
+    return false;
   }
 }
 
@@ -1127,6 +1156,9 @@ function showSuccess(downloads, printJob) {
     btn.download = d.name;
     btn.className = 'download-btn';
     btn.innerHTML = `📥 Download ${d.type}`;
+    // Consume the credit only when the user actually clicks download.
+    // The native download still proceeds because we don't preventDefault.
+    btn.addEventListener('click', () => { consumeCredit(); });
     btnsContainer.appendChild(btn);
   });
 
@@ -1143,8 +1175,10 @@ function showSuccess(downloads, printJob) {
     pendingPrintJob = null;
   }
 
+  // Note: 1 credit will be consumed when the user clicks Download EPUB or
+  // Save as PDF for the first time — not before.
   document.getElementById('uses-remaining').innerHTML =
-    `You have <strong>${usesRemaining}</strong> conversion${usesRemaining !== 1 ? 's' : ''} remaining.`;
+    `You have <strong>${usesRemaining}</strong> conversion${usesRemaining !== 1 ? 's' : ''} available. <span style="opacity:0.7">1 will be used when you download.</span>`;
 }
 
 // ============================================================
@@ -1171,9 +1205,13 @@ function closePreview() {
   frame.srcdoc = '';
 }
 
-function savePreviewAsPdf() {
+async function savePreviewAsPdf() {
   const frame = document.getElementById('preview-frame');
   if (!frame.contentWindow) return;
+  // Consume the credit before opening the print dialog. We await so the
+  // credit usage is recorded before the user decides whether to actually
+  // save the PDF — we treat opening Save as PDF as the billable intent.
+  await consumeCredit();
   frame.contentWindow.focus();
   frame.contentWindow.print();
 }
@@ -1204,6 +1242,8 @@ function hideError() {
 function resetForm() {
   successSection.classList.remove('active');
   uploadSection.classList.add('active');
+  // Starting a new conversion — next download click bills again.
+  creditConsumed = false;
   removeFile();
   
   if (usesRemaining <= 0) {
