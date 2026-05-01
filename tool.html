@@ -185,6 +185,63 @@ body{min-height:100vh;padding:24px}
 .validation-badge ul{margin:8px 0 0 20px;padding:0}
 .validation-badge li{font-size:12px;margin-bottom:4px}
 
+/* Cache panel */
+.cache-section{
+  display:none;background:var(--surface2);border:1px solid var(--border);
+  border-radius:12px;padding:18px 20px;margin-bottom:20px
+}
+.cache-section.show{display:block}
+.cache-header h3{font-size:15px;font-weight:700;margin-bottom:4px}
+.cache-header p{font-size:13px;color:var(--text-muted);margin-bottom:14px}
+.cache-list{display:flex;flex-direction:column;gap:10px}
+.cache-item{
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:12px 14px;display:flex;justify-content:space-between;align-items:center;
+  gap:12px;flex-wrap:wrap
+}
+.cache-item .info{flex:1;min-width:0}
+.cache-item .title{font-weight:600;font-size:14px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.cache-item .meta{font-size:12px;color:var(--text-muted);margin-top:2px}
+.cache-item .actions{display:flex;gap:8px}
+.cache-item button{
+  padding:6px 12px;border:none;border-radius:6px;font-size:12px;font-weight:600;
+  cursor:pointer
+}
+.cache-item .redownload{background:var(--accent);color:white}
+.cache-item .redownload:hover{background:var(--accent-hover)}
+.cache-item .reprint{background:white;color:var(--accent);border:1px solid var(--accent)}
+.cache-item .reprint:hover{background:var(--accent-light)}
+.cache-item .delete{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
+.cache-item .delete:hover{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+
+/* Pre-print confirmation modal */
+.confirm-modal{
+  position:fixed;inset:0;background:rgba(15,23,42,0.85);z-index:3000;
+  display:none;align-items:center;justify-content:center;padding:20px
+}
+.confirm-modal.show{display:flex}
+.confirm-card{
+  background:white;border-radius:14px;padding:28px;max-width:520px;width:100%;
+  box-shadow:0 20px 60px rgba(0,0,0,0.4)
+}
+.confirm-card h3{font-size:18px;font-weight:700;margin-bottom:6px}
+.confirm-card .lead{font-size:14px;color:var(--text-muted);margin-bottom:18px}
+.confirm-card ol{margin:0 0 20px 18px;font-size:14px}
+.confirm-card ol li{margin-bottom:10px;line-height:1.5}
+.confirm-card kbd{
+  background:var(--surface2);border:1px solid var(--border);border-radius:4px;
+  padding:1px 6px;font-family:inherit;font-size:13px;font-weight:600
+}
+.confirm-card .confirm-actions{display:flex;gap:10px;justify-content:flex-end}
+.confirm-card button{
+  padding:10px 18px;border:none;border-radius:8px;font-size:14px;font-weight:600;
+  cursor:pointer
+}
+.confirm-card .cancel{background:white;color:var(--text);border:1px solid var(--border)}
+.confirm-card .cancel:hover{background:var(--surface2)}
+.confirm-card .proceed{background:var(--accent);color:white}
+.confirm-card .proceed:hover{background:var(--accent-hover)}
+
 .back-link{display:block;text-align:center;margin-top:16px;color:var(--accent);text-decoration:none;font-size:14px}
 .error-msg{background:#fef2f2;color:#991b1b;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:14px;display:none}
 .error-msg.show{display:block}
@@ -289,6 +346,15 @@ body{min-height:100vh;padding:24px}
       </div>
     </div>
 
+    <!-- Cached conversions (shown when license valid + cache has entries) -->
+    <div class="cache-section" id="cache-section">
+      <div class="cache-header">
+        <h3>📚 Your recent conversions</h3>
+        <p>Re-download files from this device — no credit charged.</p>
+      </div>
+      <div class="cache-list" id="cache-list"></div>
+    </div>
+
     <!-- Upload Section (shown after valid license) -->
     <div class="upload-section" id="upload-section">
       <div class="upload-zone" id="upload-zone">
@@ -390,6 +456,22 @@ body{min-height:100vh;padding:24px}
 
 <div class="copy-toast" id="copy-toast">✓ License key copied!</div>
 
+<div class="confirm-modal" id="confirm-modal">
+  <div class="confirm-card">
+    <h3>Before saving the PDF</h3>
+    <p class="lead">The browser print dialog needs three settings or the saved PDF will look wrong. Set these in the dialog that's about to appear:</p>
+    <ol>
+      <li><strong>Destination</strong> → <kbd>Save as PDF</kbd></li>
+      <li><strong>Margins</strong> → <kbd>None</kbd> <span style="color:var(--text-muted)">(this is the most common cause of cropped or weirdly spaced output)</span></li>
+      <li><strong>Headers and footers</strong> → <kbd>off</kbd></li>
+    </ol>
+    <div class="confirm-actions">
+      <button class="cancel" onclick="cancelPdfSave()">Cancel</button>
+      <button class="proceed" onclick="proceedPdfSave()">I've set these — open dialog</button>
+    </div>
+  </div>
+</div>
+
 <div class="preview-modal" id="preview-modal">
   <div class="preview-toolbar">
     <div class="info"><strong id="preview-title">Print Preview</strong> <span id="preview-page-count"></span></div>
@@ -409,7 +491,147 @@ body{min-height:100vh;padding:24px}
 <script>
 const API_URL = 'https://manuscript-validator.realmoderatesoup.workers.dev';
 
+// ============================================================
+// Local conversion cache (IndexedDB)
+//
+// Customers occasionally close the tab before downloading or lose the file
+// from their Downloads folder. Without persistent storage, the EPUB is gone
+// forever and they have to use another credit. This cache keeps the last 20
+// conversions per license on the device so they can re-download for free.
+//
+// Limitations: browser-local. Doesn't sync across devices. May be evicted
+// under storage pressure. For full cross-device recovery we'd need server
+// storage on the validator worker.
+// ============================================================
+const CACHE_DB_NAME = 'mf_conversions';
+const CACHE_STORE = 'conversions';
+const CACHE_LIMIT = 20;
+
+function openCacheDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(CACHE_DB_NAME, 1);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve(req.result);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(CACHE_STORE)) {
+        const store = db.createObjectStore(CACHE_STORE, { keyPath: 'id' });
+        store.createIndex('byLicense', 'licenseKey', { unique: false });
+        store.createIndex('byTimestamp', 'timestamp', { unique: false });
+      }
+    };
+  });
+}
+
+async function cacheConversion({ licenseKey, filename, meta, epubBlob, pdfHtml, billed }) {
+  try {
+    const db = await openCacheDb();
+    const id = crypto.randomUUID();
+    const record = {
+      id, licenseKey, filename,
+      title: meta.title,
+      author: meta.author,
+      timestamp: Date.now(),
+      epubBlob: epubBlob || null,
+      pdfHtml: pdfHtml || null,
+      billed: !!billed
+    };
+    await new Promise((res, rej) => {
+      const tx = db.transaction(CACHE_STORE, 'readwrite');
+      tx.objectStore(CACHE_STORE).put(record);
+      tx.oncomplete = res;
+      tx.onerror = () => rej(tx.error);
+    });
+    // Trim oldest if over limit
+    await pruneOldCacheEntries(licenseKey);
+    return id;
+  } catch (err) {
+    console.warn('Cache write failed (non-fatal):', err);
+    return null;
+  }
+}
+
+async function pruneOldCacheEntries(licenseKey) {
+  const db = await openCacheDb();
+  const all = await listCachedConversions(licenseKey);
+  if (all.length <= CACHE_LIMIT) return;
+  const toDelete = all.slice(CACHE_LIMIT).map(r => r.id);
+  await new Promise((res) => {
+    const tx = db.transaction(CACHE_STORE, 'readwrite');
+    const store = tx.objectStore(CACHE_STORE);
+    toDelete.forEach(id => store.delete(id));
+    tx.oncomplete = res;
+  });
+}
+
+async function listCachedConversions(licenseKey) {
+  try {
+    const db = await openCacheDb();
+    return await new Promise((res, rej) => {
+      const tx = db.transaction(CACHE_STORE, 'readonly');
+      const store = tx.objectStore(CACHE_STORE);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const filtered = req.result
+          .filter(r => r.licenseKey === licenseKey)
+          .sort((a, b) => b.timestamp - a.timestamp);
+        res(filtered);
+      };
+      req.onerror = () => rej(req.error);
+    });
+  } catch (err) {
+    console.warn('Cache read failed (non-fatal):', err);
+    return [];
+  }
+}
+
+async function getCachedConversion(id) {
+  try {
+    const db = await openCacheDb();
+    return await new Promise((res, rej) => {
+      const tx = db.transaction(CACHE_STORE, 'readonly');
+      const req = tx.objectStore(CACHE_STORE).get(id);
+      req.onsuccess = () => res(req.result || null);
+      req.onerror = () => rej(req.error);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function deleteCachedConversion(id) {
+  try {
+    const db = await openCacheDb();
+    await new Promise((res) => {
+      const tx = db.transaction(CACHE_STORE, 'readwrite');
+      tx.objectStore(CACHE_STORE).delete(id);
+      tx.oncomplete = res;
+    });
+  } catch (err) {
+    console.warn('Cache delete failed:', err);
+  }
+}
+
+async function markCacheEntryBilled(id) {
+  try {
+    const db = await openCacheDb();
+    const record = await getCachedConversion(id);
+    if (!record) return;
+    record.billed = true;
+    await new Promise((res) => {
+      const tx = db.transaction(CACHE_STORE, 'readwrite');
+      tx.objectStore(CACHE_STORE).put(record);
+      tx.oncomplete = res;
+    });
+  } catch (err) {
+    console.warn('Cache mark-billed failed:', err);
+  }
+}
+
 let validLicense = null;
+// ID of the cache record for the currently-displayed conversion. Used so we
+// can flip its billed flag the first time the credit is consumed.
+let currentCacheId = null;
 let selectedFile = null;
 let selectedFormat = 'both';
 let usesRemaining = 0;
@@ -542,6 +764,7 @@ async function validateLicense(silent = false) {
         licenseStatus.innerHTML = `✓ License activated! <strong>${usesRemaining}</strong> conversion${usesRemaining !== 1 ? 's' : ''} remaining.`;
         uploadSection.classList.add('active');
         document.getElementById('license-section').style.display = 'none';
+        renderCachePanel();
       } else {
         licenseStatus.className = 'license-status invalid';
         licenseStatus.textContent = '✗ No conversions remaining. Purchase more credits.';
@@ -679,7 +902,31 @@ async function convertFile() {
       });
     }
 
+    // Cache the conversion locally so the customer can re-download even if
+    // they close the tab or lose the file. Cache entry starts as unbilled;
+    // consumeCredit() flips that flag the first time a credit is paid.
+    currentCacheId = await cacheConversion({
+      licenseKey: validLicense,
+      filename: selectedFile.name,
+      meta,
+      epubBlob,
+      pdfHtml,
+      billed: false
+    });
+
     showSuccess(downloads, pdfHtml ? { meta, html: pdfHtml } : null);
+
+    // Auto-download EPUB once the success UI is built. We click the real
+    // download anchor so the existing click handler runs (which calls
+    // consumeCredit). The user sees the file appear in their Downloads folder
+    // without clicking — the same download is also available in the cache for
+    // free re-download later.
+    if (epubBlob) {
+      setTimeout(() => {
+        const epubBtn = document.querySelector('#download-btns .download-btn[download]');
+        if (epubBtn) epubBtn.click();
+      }, 250);
+    }
 
   } catch (err) {
     console.error('Conversion error:', err);
@@ -698,6 +945,9 @@ async function convertFile() {
 async function consumeCredit() {
   if (creditConsumed) return true;
   creditConsumed = true;  // Optimistic — prevents racing double-clicks
+  // Mark the corresponding cache entry as billed so future re-downloads
+  // from the cache don't bill again.
+  if (currentCacheId) markCacheEntryBilled(currentCacheId);
   try {
     const useRes = await fetch(`${API_URL}/use`, {
       method: 'POST',
@@ -1365,10 +1615,11 @@ function showSuccess(downloads, printJob) {
     pendingPrintJob = null;
   }
 
-  // Note: 1 credit will be consumed when the user clicks Download EPUB or
-  // Save as PDF for the first time — not before.
+  // Note: for EPUB the credit fires from the auto-download click; for
+  // PDF it fires when the user confirms the print-dialog settings.
+  // Either way, the cache keeps the file recoverable on this device.
   document.getElementById('uses-remaining').innerHTML =
-    `You have <strong>${usesRemaining}</strong> conversion${usesRemaining !== 1 ? 's' : ''} available. <span style="opacity:0.7">1 will be used when you download.</span>`;
+    `You have <strong>${usesRemaining}</strong> conversion${usesRemaining !== 1 ? 's' : ''} remaining after this. <span style="opacity:0.7">Saved to your cache so you can re-download free anytime.</span>`;
 }
 
 // ============================================================
@@ -1395,15 +1646,105 @@ function closePreview() {
   frame.srcdoc = '';
 }
 
-async function savePreviewAsPdf() {
+function savePreviewAsPdf() {
+  // Show the pre-print confirmation so the customer can't silently miss the
+  // "Margins: None" requirement that has been the #1 cause of bad-looking
+  // PDF output. The actual print dialog opens from proceedPdfSave().
+  document.getElementById('confirm-modal').classList.add('show');
+}
+
+function cancelPdfSave() {
+  document.getElementById('confirm-modal').classList.remove('show');
+}
+
+async function proceedPdfSave() {
+  document.getElementById('confirm-modal').classList.remove('show');
   const frame = document.getElementById('preview-frame');
   if (!frame.contentWindow) return;
-  // Consume the credit before opening the print dialog. We await so the
-  // credit usage is recorded before the user decides whether to actually
-  // save the PDF — we treat opening Save as PDF as the billable intent.
+  // Credit is consumed when the user confirms — they've now committed to
+  // the save, even if they cancel the actual print dialog. The cache makes
+  // re-printing free if they need to retry.
   await consumeCredit();
   frame.contentWindow.focus();
   frame.contentWindow.print();
+}
+
+// ============================================================
+// Cache panel rendering + re-download / re-print handlers
+// ============================================================
+async function renderCachePanel() {
+  if (!validLicense) return;
+  const list = await listCachedConversions(validLicense);
+  const section = document.getElementById('cache-section');
+  const container = document.getElementById('cache-list');
+  if (!section || !container) return;
+  if (list.length === 0) {
+    section.classList.remove('show');
+    container.innerHTML = '';
+    return;
+  }
+  section.classList.add('show');
+  container.innerHTML = '';
+  for (const r of list) {
+    const item = document.createElement('div');
+    item.className = 'cache-item';
+    const when = new Date(r.timestamp).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+    });
+    const formats = [];
+    if (r.epubBlob) formats.push('EPUB');
+    if (r.pdfHtml) formats.push('PDF');
+    item.innerHTML = `
+      <div class="info">
+        <div class="title">${escapeHtml(r.title || r.filename || 'Untitled')}</div>
+        <div class="meta">${escapeHtml(when)} · ${formats.join(' + ')}${r.billed ? '' : ' · <em>not yet billed</em>'}</div>
+      </div>
+      <div class="actions">
+        ${r.epubBlob ? `<button class="redownload" data-act="redownload" data-id="${r.id}">Download EPUB</button>` : ''}
+        ${r.pdfHtml ? `<button class="reprint" data-act="reprint" data-id="${r.id}">Re-open PDF preview</button>` : ''}
+        <button class="delete" data-act="delete" data-id="${r.id}" title="Remove from this device">×</button>
+      </div>`;
+    container.appendChild(item);
+  }
+  // Wire delegated click handler once
+  container.onclick = handleCacheClick;
+}
+
+async function handleCacheClick(e) {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const act = btn.dataset.act;
+  const record = await getCachedConversion(id);
+  if (!record) return;
+  if (act === 'delete') {
+    await deleteCachedConversion(id);
+    renderCachePanel();
+    return;
+  }
+  if (act === 'redownload' && record.epubBlob) {
+    const url = URL.createObjectURL(record.epubBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${sanitizeFilename(record.title || 'manuscript')}.epub`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return;
+  }
+  if (act === 'reprint' && record.pdfHtml) {
+    // Re-open the print preview using the cached HTML. This entry was
+    // already billed when generated, so the print confirmation flow
+    // opens the dialog without consuming a new credit.
+    const job = { meta: { title: record.title }, html: record.pdfHtml };
+    pendingPrintJob = job;
+    // Mark as already-billed for this session so the print confirmation
+    // doesn't re-bill.
+    creditConsumed = record.billed;
+    openPreview(job);
+    return;
+  }
 }
 
 // Listen for pagination messages from the iframe.
@@ -1434,7 +1775,9 @@ function resetForm() {
   uploadSection.classList.add('active');
   // Starting a new conversion — next download click bills again.
   creditConsumed = false;
+  currentCacheId = null;
   removeFile();
+  renderCachePanel();
   
   if (usesRemaining <= 0) {
     uploadSection.classList.remove('active');
