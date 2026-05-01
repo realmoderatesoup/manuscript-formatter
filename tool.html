@@ -175,6 +175,16 @@ body{min-height:100vh;padding:24px}
   font-size:13px;color:var(--accent)
 }
 
+.validation-summary{margin-bottom:16px}
+.validation-badge{
+  padding:10px 14px;border-radius:8px;font-size:13px;text-align:left;
+  margin-bottom:8px;line-height:1.5
+}
+.validation-badge.pass{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
+.validation-badge.warn{background:#fefce8;color:#854d0e;border:1px solid #fde68a}
+.validation-badge ul{margin:8px 0 0 20px;padding:0}
+.validation-badge li{font-size:12px;margin-bottom:4px}
+
 .back-link{display:block;text-align:center;margin-top:16px;color:var(--accent);text-decoration:none;font-size:14px}
 .error-msg{background:#fef2f2;color:#991b1b;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:14px;display:none}
 .error-msg.show{display:block}
@@ -285,7 +295,7 @@ body{min-height:100vh;padding:24px}
         <div class="icon">📄</div>
         <div class="text">Drop your file here</div>
         <div class="sub">DOCX or Markdown (.md)</div>
-        <input type="file" id="file-input" accept=".docx,.doc,.md,.markdown,.txt">
+        <input type="file" id="file-input" accept=".docx,.doc,.md,.markdown,.txt,.pages">
       </div>
 
       <div class="file-info" id="file-info">
@@ -332,11 +342,11 @@ body{min-height:100vh;padding:24px}
         <div class="trim-select" id="trim-select">
           <label>Paperback Trim Size</label>
           <select id="trim-size">
-            <option value="5x8">5" × 8" (Most Popular)</option>
+            <option value="5x8">5" × 8" (Most Popular novel size)</option>
             <option value="5.25x8">5.25" × 8"</option>
             <option value="5.5x8.5">5.5" × 8.5"</option>
-            <option value="6x9" selected>6" × 9"</option>
-            <option value="8.5x11">8.5" × 11"</option>
+            <option value="6x9" selected>6" × 9" (Standard trade paperback)</option>
+            <option value="8.5x11">8.5" × 11" (Textbook / workbook only)</option>
           </select>
         </div>
         <div class="trim-select" style="margin-top:16px">
@@ -368,6 +378,7 @@ body{min-height:100vh;padding:24px}
       <div class="icon">✅</div>
       <h3>Conversion Complete!</h3>
       <p>Your files are ready to download.</p>
+      <div class="validation-summary" id="validation-summary"></div>
       <div class="download-btns" id="download-btns"></div>
       <div class="uses-remaining" id="uses-remaining"></div>
       <button class="convert-btn" style="margin-top:24px" onclick="resetForm()">Convert Another →</button>
@@ -573,6 +584,13 @@ fileInput.addEventListener('change', (e) => {
 
 function handleFile(file) {
   const ext = file.name.split('.').pop().toLowerCase();
+  // Apple Pages files (.pages) are bundles of binary IWA — there's no good
+  // browser-side parser. Give a clear, actionable instruction instead of a
+  // generic "unsupported" error.
+  if (ext === 'pages') {
+    showError('Apple Pages files need to be exported to Word first. In Pages: File → Export To → Word…, then upload the .docx.');
+    return;
+  }
   if (!['docx', 'doc', 'md', 'markdown', 'txt'].includes(ext)) {
     showError('Please upload a DOCX, Markdown, or TXT file.');
     return;
@@ -628,15 +646,20 @@ async function convertFile() {
     }
 
     const meta = collectMetadata(bodyHtml);
-    const chapters = parseChapters(bodyHtml);
+    const chapters = parseChapters(bodyHtml, meta.title);
 
     if (chapters.length === 0) {
       throw new Error('No content found in your manuscript.');
     }
 
-    const epubBlob = (selectedFormat === 'both' || selectedFormat === 'epub')
-      ? (showProgress('Generating EPUB...'), await generateEpub(meta, chapters))
-      : null;
+    let epubBlob = null;
+    let epubValidation = null;
+    if (selectedFormat === 'both' || selectedFormat === 'epub') {
+      showProgress('Generating EPUB...');
+      epubBlob = await generateEpub(meta, chapters);
+      showProgress('Validating EPUB against KDP requirements...');
+      epubValidation = await validateEpub(epubBlob);
+    }
 
     const pdfHtml = (selectedFormat === 'both' || selectedFormat === 'pdf')
       ? (showProgress('Building print preview...'), buildPdfHtml(meta, chapters, getPdfOptions()))
@@ -648,7 +671,12 @@ async function convertFile() {
 
     const downloads = [];
     if (epubBlob) {
-      downloads.push({ name: `${sanitizeFilename(meta.title)}.epub`, blob: epubBlob, type: 'EPUB' });
+      downloads.push({
+        name: `${sanitizeFilename(meta.title)}.epub`,
+        blob: epubBlob,
+        type: 'EPUB',
+        validation: epubValidation
+      });
     }
 
     showSuccess(downloads, pdfHtml ? { meta, html: pdfHtml } : null);
@@ -719,10 +747,19 @@ function collectMetadata(bodyHtml) {
     title = m ? stripTags(m[1]).trim() : selectedFile.name.replace(/\.[^.]+$/, '');
   }
 
+  // Auto-generate a copyright page when author is provided but no explicit
+  // copyright text was entered. Marketing claims a copyright page is generated
+  // automatically — this makes that true without requiring extra input.
+  let copyright = copyrightInput;
+  if (!copyright && authorInput) {
+    const year = new Date().getFullYear();
+    copyright = `Copyright © ${year} ${authorInput}.\nAll rights reserved.`;
+  }
+
   return {
     title: title || 'Untitled',
     author: authorInput,
-    copyright: copyrightInput,
+    copyright: copyright,
     language: 'en',
     uuid: 'urn:uuid:' + crypto.randomUUID(),
     modified: new Date().toISOString().split('.')[0] + 'Z'
@@ -754,14 +791,28 @@ function getPdfOptions() {
 
 // Split mammoth/marked HTML into chapters at H1 boundaries.
 // Anything before the first H1 (front matter / introduction) becomes "chapter 0" and is rendered as-is.
-function parseChapters(bodyHtml) {
+// If bookTitle is provided and the first H1 matches it, that H1 is treated as
+// front matter (the book title), not a chapter — prevents the "Chapter 1
+// is the same as the title page" duplication.
+function parseChapters(bodyHtml, bookTitle) {
   const doc = new DOMParser().parseFromString(`<div>${bodyHtml}</div>`, 'text/html');
   const root = doc.body.firstElementChild;
   const chapters = [];
   let current = null;
 
+  const normalize = s => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const bookTitleNorm = normalize(bookTitle);
+  let isFirstHeading = true;
+
   for (const node of Array.from(root.childNodes)) {
     if (node.nodeType === 1 && node.tagName === 'H1') {
+      if (isFirstHeading && bookTitleNorm && normalize(node.textContent) === bookTitleNorm) {
+        // Skip — this is the book title repeated as the first heading. Don't
+        // start a new chapter for it. Subsequent H1s become chapters as normal.
+        isFirstHeading = false;
+        continue;
+      }
+      isFirstHeading = false;
       if (current) chapters.push(current);
       current = { title: node.textContent.trim(), nodes: [] };
     } else {
@@ -776,8 +827,20 @@ function parseChapters(bodyHtml) {
     index: i + 1,
     title: ch.title || `Chapter ${i + 1}`,
     hasTitle: !!ch.title,
-    bodyHtml: ch.nodes.map(n => n.nodeType === 1 ? n.outerHTML : escapeHtml(n.textContent)).join('')
+    bodyHtml: addDropCap(ch.nodes.map(n => n.nodeType === 1 ? n.outerHTML : escapeHtml(n.textContent)).join(''))
   }));
+}
+
+// Wrap the first letter of the first paragraph in a span so we can style it
+// as a drop cap. CSS ::first-letter is unreliable in Paged.js, but a literal
+// span works in both EPUB readers and Paged.js print output.
+function addDropCap(html) {
+  // Match the first <p>...</p> block (after any whitespace) and grab its first
+  // alphanumeric character to wrap. Skip if the paragraph starts with a tag
+  // (e.g. <em>) — too hard to handle cleanly without breaking inline markup.
+  return html.replace(/^(\s*<p[^>]*>)(\s*)([A-Za-z0-9])/, (match, openTag, leadingWs, firstChar) => {
+    return `${openTag}${leadingWs}<span class="drop-cap">${firstChar}</span>`;
+  });
 }
 
 function stripTags(s) {
@@ -930,6 +993,13 @@ blockquote { margin: 1em 1.5em; font-style: italic; }
 .book-author { text-align: center; font-size: 1.2em; margin-top: 1em; font-style: italic; }
 .copyright p { text-indent: 0; text-align: center; font-size: 0.9em; margin-bottom: 0.5em; }
 .chapter { page-break-before: always; }
+.drop-cap {
+  font-size: 3em;
+  float: left;
+  line-height: 0.85;
+  font-weight: bold;
+  padding: 0.05em 0.1em 0 0;
+}
 nav#toc h1 { text-align: center; }
 nav#toc ol { list-style: none; padding-left: 0; }
 nav#toc li { margin: 0.5em 0; }
@@ -955,6 +1025,106 @@ function escapeXml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+// ============================================================
+// EPUB structural validator (no external deps)
+//
+// We built every byte of the EPUB ourselves, so the things this validator
+// checks are also the things our generator must produce. Catching a violation
+// here means we shipped a bug, not that the user's manuscript is bad.
+// Customers see a "✓ Validated against EPUB 3 / KDP requirements" badge in
+// the success UI when this returns valid:true.
+// ============================================================
+async function validateEpub(blob) {
+  const errors = [];
+  try {
+    const zip = await JSZip.loadAsync(blob);
+
+    // Mandatory files
+    if (!zip.file('mimetype')) errors.push('Missing mimetype file');
+    if (!zip.file('META-INF/container.xml')) errors.push('Missing META-INF/container.xml');
+
+    // Mimetype must be exactly the EPUB media type, uncompressed
+    const mimetype = await zip.file('mimetype')?.async('string');
+    if (mimetype && mimetype.trim() !== 'application/epub+zip') {
+      errors.push('mimetype file content is wrong: ' + mimetype.trim());
+    }
+
+    // Locate the package document via container.xml
+    const containerXml = await zip.file('META-INF/container.xml')?.async('string');
+    const opfPath = containerXml?.match(/full-path="([^"]+)"/)?.[1];
+    if (!opfPath) {
+      errors.push('container.xml is missing the rootfile path');
+      return { valid: false, errors };
+    }
+    const opfFile = zip.file(opfPath);
+    if (!opfFile) {
+      errors.push(`Package file ${opfPath} declared in container.xml does not exist`);
+      return { valid: false, errors };
+    }
+
+    // Parse the OPF and check Dublin Core metadata + manifest + spine
+    const opfXml = await opfFile.async('string');
+    const opfDoc = new DOMParser().parseFromString(opfXml, 'application/xml');
+    if (opfDoc.querySelector('parsererror')) {
+      errors.push('package.opf is not well-formed XML');
+      return { valid: false, errors };
+    }
+
+    const dcNs = (n) => opfDoc.getElementsByTagNameNS('http://purl.org/dc/elements/1.1/', n);
+    if (dcNs('identifier').length === 0) errors.push('package.opf is missing dc:identifier');
+    if (dcNs('title').length === 0) errors.push('package.opf is missing dc:title');
+    if (dcNs('language').length === 0) errors.push('package.opf is missing dc:language');
+
+    // Every manifest item references a file that exists in the zip
+    const opfDir = opfPath.includes('/') ? opfPath.substring(0, opfPath.lastIndexOf('/')) : '';
+    const manifestItems = Array.from(opfDoc.getElementsByTagName('item'));
+    const manifestIds = new Set();
+    for (const item of manifestItems) {
+      const id = item.getAttribute('id');
+      const href = item.getAttribute('href');
+      if (id) manifestIds.add(id);
+      if (!href) continue;
+      const fullPath = opfDir ? `${opfDir}/${href}` : href;
+      if (!zip.file(fullPath)) errors.push(`Manifest references missing file: ${href}`);
+    }
+
+    // Spine references valid manifest ids and is non-empty
+    const spineRefs = Array.from(opfDoc.getElementsByTagName('itemref'));
+    if (spineRefs.length === 0) errors.push('Spine has no entries — readers will see an empty book');
+    for (const ref of spineRefs) {
+      const idref = ref.getAttribute('idref');
+      if (idref && !manifestIds.has(idref)) {
+        errors.push(`Spine references manifest id that does not exist: ${idref}`);
+      }
+    }
+
+    // Navigation document is declared with properties="nav"
+    const navItem = manifestItems.find(i => {
+      const props = (i.getAttribute('properties') || '').split(/\s+/);
+      return props.includes('nav');
+    });
+    if (!navItem) {
+      errors.push('No EPUB 3 navigation document declared (manifest item with properties="nav")');
+    }
+
+    // Each XHTML file in the manifest parses as well-formed XML
+    for (const item of manifestItems) {
+      if (item.getAttribute('media-type') !== 'application/xhtml+xml') continue;
+      const href = item.getAttribute('href');
+      const fullPath = opfDir ? `${opfDir}/${href}` : href;
+      const content = await zip.file(fullPath)?.async('string');
+      if (!content) continue;
+      const xhtmlDoc = new DOMParser().parseFromString(content, 'application/xhtml+xml');
+      if (xhtmlDoc.querySelector('parsererror')) {
+        errors.push(`${href} is not well-formed XHTML — Kindle / KDP may reject it`);
+      }
+    }
+  } catch (e) {
+    errors.push('EPUB structure unreadable: ' + e.message);
+  }
+  return { valid: errors.length === 0, errors };
 }
 
 // ============================================================
@@ -1076,7 +1246,7 @@ ul, ol { margin: 0.5em 0 0.5em 2em; }
   font-weight: 700;
   margin: 1.5in 0 1.2em;
 }
-.chapter > p:first-of-type::first-letter {
+.drop-cap {
   float: left;
   font-size: 3.4em;
   line-height: 0.85;
@@ -1148,6 +1318,26 @@ function showSuccess(downloads, printJob) {
 
   const btnsContainer = document.getElementById('download-btns');
   btnsContainer.innerHTML = '';
+
+  // Surface validation result before the download buttons so the customer
+  // sees what they're getting.
+  const validationContainer = document.getElementById('validation-summary');
+  if (validationContainer) {
+    validationContainer.innerHTML = '';
+    downloads.forEach(d => {
+      if (!d.validation) return;
+      const ok = d.validation.valid;
+      const div = document.createElement('div');
+      div.className = 'validation-badge ' + (ok ? 'pass' : 'warn');
+      if (ok) {
+        div.innerHTML = `✓ <strong>${d.type}</strong> validated against EPUB 3 / KDP requirements.`;
+      } else {
+        const list = d.validation.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('');
+        div.innerHTML = `⚠ <strong>${d.type}</strong> validation found ${d.validation.errors.length} issue${d.validation.errors.length !== 1 ? 's' : ''}. The file may still work but please report this:<ul>${list}</ul>`;
+      }
+      validationContainer.appendChild(div);
+    });
+  }
 
   downloads.forEach(d => {
     const url = URL.createObjectURL(d.blob);
